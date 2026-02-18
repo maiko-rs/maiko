@@ -1,4 +1,4 @@
-use std::{fmt, hash, ops};
+use std::{fmt, hash};
 
 use crate::{ActorId, Event, EventId, Meta};
 
@@ -42,8 +42,7 @@ impl<E> Envelope<E> {
 
     /// Returns a reference to the event payload.
     ///
-    /// This is a convenience method for pattern matching. For method calls,
-    /// you can also use `Deref` (e.g., `envelope.some_event_method()`).
+    /// This is a convenience method for pattern matching.
     ///
     /// # Example
     ///
@@ -90,16 +89,6 @@ impl<E: hash::Hash> hash::Hash for Envelope<E> {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.meta.id().hash(state);
         self.event.hash(state);
-    }
-}
-
-// TODO remove in 0.3.0
-// NOTE: This Deref impl is scheduled for removal in 0.3.0.
-// Prefer `envelope.event()` over `*envelope` or direct field access.
-impl<E: Event> ops::Deref for Envelope<E> {
-    type Target = E;
-    fn deref(&self) -> &E {
-        &self.event
     }
 }
 

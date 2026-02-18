@@ -34,7 +34,7 @@ pub enum Error {
     External(Arc<str>),
 
     #[error("IO Error: {0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 
     #[cfg(feature = "test-harness")]
     #[error("settle_on condition not met within {0:?}: {1} events recorded")]

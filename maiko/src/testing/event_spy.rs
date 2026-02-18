@@ -172,7 +172,7 @@ mod tests {
         let records = Arc::new(vec![entry]);
 
         let spy = EventSpy::new(records, id);
-        assert_eq!(&*spy.sender(), "alice");
+        assert_eq!(spy.sender().name(), "alice");
     }
 
     #[test]
@@ -192,8 +192,8 @@ mod tests {
         let spy = EventSpy::new(records, id);
         let receivers = spy.receivers();
         assert_eq!(receivers.len(), 2);
-        assert!(receivers.iter().any(|r| &**r == "bob"));
-        assert!(receivers.iter().any(|r| &**r == "charlie"));
+        assert!(receivers.iter().any(|r| r.name() == "bob"));
+        assert!(receivers.iter().any(|r| r.name() == "charlie"));
     }
 
     #[test]

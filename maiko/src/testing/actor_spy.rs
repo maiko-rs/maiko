@@ -201,8 +201,8 @@ mod tests {
         let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
         let senders = spy.received_from();
         assert_eq!(senders.len(), 2);
-        assert!(senders.iter().any(|s| &**s == "bob"));
-        assert!(senders.iter().any(|s| &**s == "charlie"));
+        assert!(senders.iter().any(|s| s.name() == "bob"));
+        assert!(senders.iter().any(|s| s.name() == "charlie"));
     }
 
     #[test]
@@ -269,8 +269,8 @@ mod tests {
         let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
         let receivers = spy.sent_to();
         assert_eq!(receivers.len(), 2);
-        assert!(receivers.iter().any(|r| &**r == "bob"));
-        assert!(receivers.iter().any(|r| &**r == "charlie"));
+        assert!(receivers.iter().any(|r| r.name() == "bob"));
+        assert!(receivers.iter().any(|r| r.name() == "charlie"));
     }
 
     #[test]

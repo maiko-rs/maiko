@@ -1,4 +1,4 @@
-use std::{hash::Hash, ops::Deref, sync::Arc};
+use std::{hash::Hash, sync::Arc};
 
 /// Unique identifier for a registered actor.
 ///
@@ -64,12 +64,5 @@ impl std::fmt::Display for ActorId {
 impl Hash for ActorId {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
-    }
-}
-
-impl Deref for ActorId {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }

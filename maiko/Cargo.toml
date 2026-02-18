@@ -1,6 +1,6 @@
 [package]
 name = "maiko"
-version = "0.2.6"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Lightweight event-driven actor runtime with topic-based pub/sub for Tokio"
@@ -28,7 +28,7 @@ test-harness = ["monitoring"]
 
 [dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
-maiko-macros = { version="=0.2.6", optional = true, path = "../maiko-macros/" }
+maiko-macros = { version = "=0.3.0", optional = true, path = "../maiko-macros/" }
 serde = { version = "1.0", features = ["derive", "rc"], optional = true }
 serde_json = { version = "1.0", optional = true }
 thiserror = "2.0"

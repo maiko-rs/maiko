@@ -43,6 +43,7 @@ use crate::{
 /// **Do not use in production.** The test harness uses an unbounded channel
 /// for event collection, which can lead to memory exhaustion under high load.
 /// For production monitoring, use the [`monitoring`](crate::monitoring) API directly.
+#[derive(Debug)]
 pub struct Harness<E: Event, T: Topic<E>> {
     pub(super) snapshot: Vec<EventEntry<E, T>>,
     records: EventRecords<E, T>,

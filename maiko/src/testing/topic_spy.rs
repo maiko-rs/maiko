@@ -171,8 +171,8 @@ mod tests {
         let spy = TopicSpy::new(sample_records_with_actors(&actors), TestTopic::Control);
         let receivers = spy.receivers();
         assert_eq!(receivers.len(), 2);
-        assert!(receivers.iter().any(|r| &**r == "alice"));
-        assert!(receivers.iter().any(|r| &**r == "charlie"));
+        assert!(receivers.iter().any(|r| r.name() == "alice"));
+        assert!(receivers.iter().any(|r| r.name() == "charlie"));
     }
 
     #[test]

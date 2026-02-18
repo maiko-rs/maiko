@@ -564,9 +564,9 @@ mod tests {
         let actors = chain.actors();
         let all = actors.all();
         assert_eq!(all.len(), 3);
-        assert!(all.iter().any(|a| ***a == *alice));
-        assert!(all.iter().any(|a| ***a == *bob));
-        assert!(all.iter().any(|a| ***a == *charlie));
+        assert!(all.iter().any(|a| **a == alice));
+        assert!(all.iter().any(|a| **a == bob));
+        assert!(all.iter().any(|a| **a == charlie));
     }
 
     #[test]

@@ -59,7 +59,7 @@ pub trait Topic<E: Event>: Hash + PartialEq + Eq + Clone + Send + Sync + 'static
 /// let mut sup = Supervisor::<MyEvent>::default();
 /// sup.add_actor("actor", |ctx| MyActor { ctx }, &[DefaultTopic])?;
 /// ```
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub struct DefaultTopic;
 
 impl<E: Event> Topic<E> for DefaultTopic {
