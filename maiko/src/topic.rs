@@ -8,8 +8,8 @@ use crate::{OverflowPolicy, event::Event};
 /// events for the broker. Actors subscribe to one or more topics, and the
 /// broker delivers events to matching subscribers.
 ///
-/// Topics must be `Send + 'static` because they are stored in the broker
-/// which runs in a spawned task.
+/// Topics must be `Hash + Eq + Clone + Send + Sync + 'static` because they
+/// are used as subscription keys in the broker, which runs in a spawned task.
 ///
 /// Common patterns:
 /// - Enum topics for simple classification.

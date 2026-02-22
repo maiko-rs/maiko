@@ -6,6 +6,7 @@
 //! # Available Monitors
 //!
 //! - [`Tracer`] - Logs event lifecycle via `tracing` crate
+//! - [`ActorMonitor`] - Tracks actor lifecycle and overflow counts
 //! - [`Recorder`] - Records events to a JSON Lines file (requires `recorder` feature)
 //!
 //! # Example

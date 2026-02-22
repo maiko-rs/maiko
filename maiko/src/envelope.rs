@@ -2,11 +2,11 @@ use std::{fmt, hash, ops};
 
 use crate::{ActorId, Event, EventId, Meta};
 
-/// Event plus metadata used by the broker for routing and observability.
+/// The unit carried through all Maiko channels.
 ///
-/// - `event`: the user-defined payload implementing `Event`.
-/// - `meta`: `Meta` describing who emitted the event and when.
-///   Includes `actor_name` and optional `correlation_id` for linking related events.
+/// Every event in the system travels as `Arc<Envelope<E>>` - from producer
+/// through the broker to each subscriber's mailbox. It pairs the user-defined
+/// event payload with [`Meta`] (sender, timestamp, correlation ID).
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(

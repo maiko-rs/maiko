@@ -13,7 +13,7 @@ This document covers each abstraction in detail.
 
 ## Events
 
-Events are messages that flow through the system. They must implement the `Event` trait (via derive macro):
+Events are messages that flow through the system. They must implement the `Event` trait (there is derive macro for convenience):
 
 ```rust
 #[derive(Event, Debug)]
@@ -25,15 +25,15 @@ enum NetworkEvent {
 ```
 
 Events are:
-- **Cloneable** — events may be delivered to multiple actors
+- **Cloneable** - events may be delivered to multiple actors
 - **Send + Sync** - as they travel between tasks and threads.
 
 Events should be:
-- **Debuggable** — for logging and diagnostics
+- **Debuggable** - for logging and diagnostics
 
 ## Topics
 
-Topics route events to interested actors. Each event maps to exactly one topic, determined by the `Topic::from_event()` implementation.
+Topics group events and route them to interested actors. Each event maps to exactly one topic, determined by the `Topic::from_event()` implementation.
 
 ### Custom Topics
 
@@ -76,11 +76,11 @@ impl Topic<NetworkEvent> for NetworkTopic {
 }
 ```
 
-The default is `Fail` — the subscriber's channel is closed and the actor terminates. This surfaces problems immediately. See [`OverflowPolicy`](https://docs.rs/maiko/latest/maiko/enum.OverflowPolicy.html) for details.
+The default is `Fail` - the subscriber's channel is closed and the actor terminates. This surfaces problems immediately. See [`OverflowPolicy`](https://docs.rs/maiko/latest/maiko/enum.OverflowPolicy.html) for details.
 
 ### DefaultTopic
 
-Use `DefaultTopic` when you don't need routing — all events go to all subscribed actors:
+Use `DefaultTopic` when you don't need routing - all events go to all subscribed actors:
 
 ```rust
 sup.add_actor("processor", factory, &[DefaultTopic])?;
@@ -88,10 +88,10 @@ sup.add_actor("processor", factory, &[DefaultTopic])?;
 
 ## Actors
 
-Actors are independent units that process events. They implement the `Actor` trait with two core methods:
+Actors are independent units that process or produce events. They implement the `Actor` trait with two core methods:
 
-- **`handle_event`** — Process incoming events
-- **`step`** — Produce events or perform periodic work
+- **`handle_event`** - Process incoming events
+- **`step`** - Produce events or perform periodic work
 
 ```rust
 struct PacketProcessor {
@@ -123,7 +123,7 @@ impl Actor for PacketProcessor {
 
 ### Actor Roles
 
-Concurrent tasks typically fall into one of three roles: **sources** that produce data, **sinks** that consume it, and **processors** that do both. Maiko doesn't have separate types for these — every actor implements the same `Actor` trait. The role emerges from which methods you use and what you subscribe to:
+Concurrent tasks typically fall into one of three roles: **sources** that produce data, **sinks** that consume it, and **processors** that do both. Maiko doesn't have separate types for these - every actor implements the same `Actor` trait. The role emerges from which methods you use and what you subscribe to:
 
 | Role | `step()` | `handle_event()` | Subscriptions |
 |------|----------|-------------------|---------------|
@@ -131,17 +131,17 @@ Concurrent tasks typically fall into one of three roles: **sources** that produc
 | **Sink** | `Never` (default) | Consumes events | Topics it cares about |
 | **Processor** | Optional | Receives events, sends new ones | Selective topics |
 
-A temperature sensor is a source — it uses `step()` to emit readings and subscribes to nothing. A logger is a sink — it handles events but never sends. An alerter is a processor — it receives readings and emits alerts.
+A temperature sensor is a source - it uses `step()` to emit readings and subscribes to nothing. A logger is a sink - it handles events but never sends. An alerter is a processor - it receives readings and emits alerts.
 
-This is a deliberate design choice. A single trait keeps the API small and lets actors evolve. A sink that later needs to emit events just adds a `Context` field — no type change, no rewiring.
+This is a deliberate design choice. A single trait keeps the API small and lets actors evolve. A sink that later needs to emit events just adds a `Context` field - no type change, no rewiring.
 
 ### Lifecycle Hooks
 
 Actors can implement optional lifecycle methods:
 
-- **`on_start`** — Called once when the actor starts
-- **`on_shutdown`** — Called during graceful shutdown
-- **`on_error`** — Handle errors (swallow or propagate)
+- **`on_start`** - Called once when the actor starts
+- **`on_shutdown`** - Called during graceful shutdown
+- **`on_error`** - Handle errors (swallow or propagate)
 
 ```rust
 async fn on_start(&mut self) -> Result<()> {
@@ -157,7 +157,7 @@ fn on_error(&self, error: Error) -> Result<()> {
 
 ## Context
 
-The `Context` provides actors with capabilities to interact with the system. **Context is optional**—actors that only consume events (without sending) don't need to store it:
+The `Context` provides actors with capabilities to interact with the system. **Context is optional** - actors that only consume events (without sending) don't need to store it:
 
 ```rust
 // Pure consumer - no context needed
@@ -185,7 +185,7 @@ Context capabilities:
 ctx.send(NetworkEvent::PacketReceived(data)).await?;
 
 // Send with correlation (for tracking related events)
-ctx.send_child_event(ResponseEvent::Ok, &envelope.meta).await?;
+ctx.send_child_event(ResponseEvent::Ok, envelope.meta()).await?;
 
 // Stop this actor
 ctx.stop();
@@ -201,11 +201,11 @@ The `Supervisor` manages actor lifecycles and provides registration APIs.
 ### Simple API
 
 ```rust
-let mut sup = Supervisor::<NetworkEvent>::new();
+let mut sup = Supervisor::<NetworkEvent, NetworkTopic>::default();
 
 sup.add_actor("ingress", |ctx| IngressActor::new(ctx), &[NetworkTopic::Ingress])?;
 sup.add_actor("egress", |ctx| EgressActor::new(ctx), &[NetworkTopic::Egress])?;
-sup.add_actor("monitor", |ctx| MonitorActor::new(ctx), Subscribe::All())?;
+sup.add_actor("monitor", MonitorActor::new, Subscribe::all())?; // no closure needed
 ```
 
 ### Actor Builder
@@ -219,7 +219,7 @@ sup.build_actor("writer", |ctx| Writer::new(ctx))
     .build()?;
 ```
 
-See [Advanced Topics — Per-Actor Config](advanced.md#per-actor-config) for details.
+See [Advanced Topics - Per-Actor Config](advanced.md#per-actor-config) for details.
 
 ### Runtime Control
 
@@ -246,11 +246,11 @@ The `step()` method returns `StepAction` to control scheduling:
 
 | Action | Behavior |
 |--------|----------|
-| `StepAction::Continue` | Run step again immediately |
+| `StepAction::Continue` | Run `step` again immediately |
 | `StepAction::Yield` | Yield to runtime, then run again |
 | `StepAction::AwaitEvent` | Pause until next event arrives |
 | `StepAction::Backoff(Duration)` | Sleep, then run again |
-| `StepAction::Never` | Disable step permanently (default) |
+| `StepAction::Never` | Disable `step` permanently (default) |
 
 ### Common Patterns
 
@@ -282,9 +282,9 @@ async fn step(&mut self) -> Result<StepAction> {
 
 `ActorId` uniquely identifies a registered actor. It is returned by `Supervisor::add_actor()` and used throughout the system for:
 
-- **Event metadata** — every envelope carries the sender's `ActorId`
-- **Test assertions** — verify which actors sent/received events
-- **Correlation** — track event flow between specific actors
+- **Event metadata** - every envelope carries the sender's `ActorId`
+- **Test assertions** - verify which actors sent/received events
+- **Correlation** - track event flow between specific actors
 
 ```rust
 // Returned when registering an actor
@@ -323,12 +323,12 @@ async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()>
     let event = envelope.event();
 
     // Access metadata
-    let sender = envelope.meta.actor_name();
-    let event_id = envelope.meta.id();
-    let correlation = envelope.meta.correlation_id();
+    let sender = envelope.meta().actor_name();
+    let event_id = envelope.meta().id();
+    let correlation = envelope.meta().correlation_id();
 
     // Send correlated child event
-    self.ctx.send_child_event(ResponseEvent::Ok, &envelope.meta).await?;
+    self.ctx.send_child_event(ResponseEvent::Ok, envelope.meta()).await?;
 
     Ok(())
 }

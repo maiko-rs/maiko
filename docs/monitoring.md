@@ -10,18 +10,18 @@ maiko = { version = "0.2", features = ["monitoring"] }
 ## Overview
 
 The monitoring system provides hooks into the event lifecycle:
-- **Event dispatched** — when the broker routes an event to a subscriber
-- **Event delivered** — when an actor receives an event from its mailbox
-- **Event handled** — when an actor finishes processing an event
-- **Overflow** — when a subscriber's channel is full and an overflow policy is triggered
-- **Errors** — when an actor's event handler returns an error
-- **Actor lifecycle** — when actors stop
+- **Event dispatched** - when the broker routes an event to a subscriber
+- **Event delivered** - when an actor receives an event from its mailbox
+- **Event handled** - when an actor finishes processing an event
+- **Overflow** - when a subscriber's channel is full and an overflow policy is triggered
+- **Errors** - when an actor's event handler returns an error
+- **Actor lifecycle** - when actors register and stop
 
 Monitors are useful for:
-- **Debugging** — trace event flow through the system
-- **Metrics** — collect timing, counts, and throughput data
-- **Logging** — structured event logs for observability
-- **Testing** — the [test harness](testing.md) is built on top of monitoring
+- **Debugging** - trace event flow through the system
+- **Metrics** - collect timing, counts, and throughput data
+- **Logging** - structured event logs for observability
+- **Testing** - the [test harness](testing.md) is built on top of monitoring
 
 ## Basic Usage
 
@@ -75,11 +75,23 @@ use maiko::monitors::Tracer;
 sup.monitors().add(Tracer).await;
 ```
 
-Output at different log levels:
-- `trace` - event dispatched/delivered/overflow (high volume)
-- `debug` - event handled
-- `warn` - errors
-- `info` - actor stopped
+### ActorMonitor
+
+Tracks actor lifecycle and overflow counts. Clone it to query from any thread:
+
+```rust
+use maiko::monitors::ActorMonitor;
+
+let monitor = ActorMonitor::new();
+let query = monitor.clone();
+sup.monitors().add(monitor).await;
+
+// Later, from any thread:
+query.is_alive(&actor_id);
+query.overflow_count(&actor_id);
+query.actors();          // snapshot of active actor IDs
+query.stopped_actors();  // snapshot of stopped actor IDs
+```
 
 ### Recorder
 
@@ -115,8 +127,17 @@ pub trait Monitor<E: Event, T: Topic<E>>: Send {
     /// Called after an actor finishes processing an event.
     fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {}
 
+    /// Called when a new actor is registered in the system.
+    fn on_actor_registered(&self, actor_id: &ActorId) {}
+
     /// Called when an actor's handler returns an error.
     fn on_error(&self, err: &str, actor_id: &ActorId) {}
+
+    /// Called when an actor enters its step() method.
+    fn on_step_enter(&self, actor_id: &ActorId) {}
+
+    /// Called when an actor exits its step() method.
+    fn on_step_exit(&self, step_action: &StepAction, actor_id: &ActorId) {}
 
     /// Called when a subscriber's channel is full (see OverflowPolicy).
     fn on_overflow(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId, policy: OverflowPolicy) {}
@@ -130,9 +151,9 @@ pub trait Monitor<E: Event, T: Topic<E>>: Send {
 
 Events flow through these stages:
 
-1. **Dispatched** — Broker determines the topic and sends to each subscriber
-2. **Delivered** — Actor receives the event from its channel
-3. **Handled** — Actor's `handle_event()` completes
+1. **Dispatched** - Broker determines the topic and sends to each subscriber
+2. **Delivered** - Actor receives the event from its channel
+3. **Handled** - Actor's `handle_event()` completes
 
 If a subscriber's channel is full at step 1, `on_overflow` fires instead of `on_event_dispatched`. The overflow policy then determines what happens next (drop, block, or close the channel).
 

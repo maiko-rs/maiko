@@ -1,8 +1,10 @@
-# [0.2.6](https://github.com/maiko-rs/maiko/compare/v0.2.4...v0.2.5) (February 22nd, 2026)
+# [0.2.6](https://github.com/maiko-rs/maiko/compare/v0.2.5...v0.2.6) (February 22nd, 2026)
 
 ### Changed
 
-- moved repo from [personal account](https://github.com/ddrcode) to [maiko-rs](https://github.com/maiko-rs) organization
+- moved repo from [personal account](https://github.com/ddrcode) to [maiko-rs](https://github.com/maiko-rs) organization ([#87])
+
+[#87]: https://github.com/maiko-rs/maiko/pull/87
 
 ---
 

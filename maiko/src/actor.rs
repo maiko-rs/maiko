@@ -46,7 +46,7 @@ pub trait Actor: Send + 'static {
     /// Handle a single incoming event.
     ///
     /// Receives the full [`Envelope`] containing both the event payload and metadata.
-    /// Use `envelope.event()` for pattern matching, or access `envelope.meta` for
+    /// Use `envelope.event()` for pattern matching, or access `envelope.meta()` for
     /// sender information and correlation IDs.
     ///
     /// # Example
@@ -57,7 +57,7 @@ pub trait Actor: Send + 'static {
     ///         MyEvent::Foo(x) => self.handle_foo(x).await,
     ///         MyEvent::Bar => {
     ///             // Access metadata when needed
-    ///             println!("Bar from {}", envelope.meta.actor_name());
+    ///             println!("Bar from {}", envelope.meta().actor_name());
     ///             Ok(())
     ///         }
     ///     }

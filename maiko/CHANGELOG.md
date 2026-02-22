@@ -1,17 +1,20 @@
-# [0.2.6](https://github.com/maiko-rs/maiko/compare/v0.2.4...v0.2.5) (February 22nd, 2026)
+# [0.2.6](https://github.com/maiko-rs/maiko/compare/v0.2.5...v0.2.6) (February 22nd, 2026)
 
 ### Added
 
 - `ActorMonitor` to track monitor lifecycle ([#83], [#86])
+- `Why Maiko` and `Getting started` docs
 
 ### Changed
 
 - actor-broker communication moved from single global channel to channel per actor-broker pair ([#84])
-- moved repo from [personal account](https://github.com/ddrcode) to [maiko-rs](https://github.com/maiko-rs) organization
+- moved repo from [personal account](https://github.com/ddrcode) to [maiko-rs](https://github.com/maiko-rs) organization ([#87])
+- documentation improvements
 
 [#83]: https://github.com/maiko-rs/maiko/pull/83
 [#84]: https://github.com/maiko-rs/maiko/pull/84
 [#86]: https://github.com/maiko-rs/maiko/pull/86
+[#87]: https://github.com/maiko-rs/maiko/pull/87
 
 ---
 

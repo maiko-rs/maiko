@@ -1,6 +1,9 @@
 # Advanced Topics
 
-This document covers advanced Maiko features and patterns beyond the basics: error handling strategies, runtime configuration, design philosophy, and performance considerations.
+This document covers advanced Maiko features and patterns beyond the basics: error handling strategies, runtime configuration, and performance considerations.
+
+For Maiko's design philosophy - loose coupling through topics, unidirectional flow, actors as domain entities, and guidance on when Maiko fits vs. alternatives - see **[Why Maiko?](why-maiko.md#design-philosophy)**.
+
 
 ## Error Handling
 
@@ -50,7 +53,7 @@ let mut sup = Supervisor::new(config);
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `broker_channel_capacity` | 256 | Broker input buffer (stage 1). Producers block when full. |
+| `broker_channel_capacity` | 256 | Per-actor channel to broker (stage 1). Producer blocks when its channel is full. |
 | `default_actor_channel_capacity` | 128 | Default mailbox size for new actors (stage 2). |
 | `default_max_events_per_tick` | 10 | Max events an actor processes before yielding. Per-actor override via `ActorBuilder`. |
 | `maintenance_interval` | 10s | How often broker cleans up closed channels |
@@ -72,7 +75,7 @@ sup.add_actor("processor", |ctx| Processor::new(ctx), &[Topic::Data])?;
 ```
 
 `add_actor` always uses global defaults. When an actor needs different settings
-— typically slow consumers or actors handling bursty traffic — use
+- typically slow consumers or actors handling bursty traffic - use
 `build_actor`. For settings without a direct shorthand, use `with_config`:
 
 ```rust
@@ -83,10 +86,6 @@ sup.build_actor("consumer", |ctx| Consumer::new(ctx))
     .build()?;
 ```
 
-## Design Philosophy
-
-For Maiko's design philosophy — loose coupling through topics, unidirectional flow, actors as domain entities, and guidance on when Maiko fits vs. alternatives — see **[Why Maiko?](why-maiko.md#design-philosophy)**.
-
 ## Correlation Tracking
 
 Track event causality with correlation IDs:
@@ -94,27 +93,27 @@ Track event causality with correlation IDs:
 ```rust
 async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
     // Check correlation
-    if let Some(parent_id) = envelope.meta.correlation_id() {
+    if let Some(parent_id) = envelope.meta().correlation_id() {
         println!("This event was triggered by: {}", parent_id);
     }
 
     // Send a correlated child event
     self.ctx.send_child_event(
         MyEvent::Response(data),
-        &envelope.meta  // Links new event to this one
+        envelope.meta()  // Links new event to this one
     ).await?;
 
     Ok(())
 }
 ```
 
-Child events carry their parent's ID as `correlation_id`, enabling tracing of event chains through the system.
+Child events carry their parent's ID as `correlation_id`, enabling tracing of event chains through the system. The [test harness](testing.md) uses correlation to track event propagation - `EventChain`, `ActorTrace`, and `EventTrace` let you assert on causal chains without manual bookkeeping.
 
 ## Flow Control
 
 Events pass through two channel stages:
 
-1. **Stage 1** (producer → broker): shared bounded channel. Always blocks when full.
+1. **Stage 1** (producer → broker): per-actor bounded channel. Always blocks when full.
 2. **Stage 2** (broker → subscriber): per-actor bounded channel. Behavior depends on the topic's `OverflowPolicy`.
 
 ### Overflow Policies
@@ -139,7 +138,7 @@ fn overflow_policy(&self) -> OverflowPolicy {
 
 ### Producer-Side Control
 
-Producers can check stage 1 congestion with `Context::is_sender_full()` to skip non-essential events:
+Producers can check their own channel congestion with `Context::is_sender_full()` to skip non-essential events:
 
 ```rust
 async fn step(&mut self) -> Result<StepAction> {
@@ -172,5 +171,5 @@ Start with defaults and tune based on profiling.
 
 ### Payload Size
 
-Maiko can handle larger events efficently as each `Envelope` is wrapped in `Arc` before sending.
+Maiko can handle larger events efficiently as each `Envelope` is wrapped in `Arc` before sending.
 It means there is no memory overhead while sending the same event to multiple actors.

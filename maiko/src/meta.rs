@@ -4,18 +4,14 @@ use uuid::Uuid;
 
 use crate::{ActorId, EventId};
 
-/// Metadata attached to every event envelope.
+/// Metadata attached to every [`Envelope`](crate::Envelope).
 ///
-/// - `id`: unique identifier for the envelope.
-/// - `timestamp`: creation time in nanoseconds since Unix epoch (truncated to `u64`).
-/// - `actor_name`: actor name emitting the event.
-/// - `correlation_id`: optional id to link related events together.  Useful for
-///   tracing and debugging event flows.
-///
-/// There is no logic at Maiko built around the `correlation_id`, so the value doesn't
-/// have any special meaning to the runtime.  It's up to the user to set and interpret it.
-/// For example, an actor may choose to set the `correlation_id` of child events, but
-/// it may also have another meaning in a different context.
+/// - `id`: unique event identifier (UUID v4, not monotonic).
+/// - `timestamp`: creation time in nanoseconds since Unix epoch (`u64`). Monotonic within a process.
+/// - `actor_id`: the actor that emitted the event.
+/// - `correlation_id`: optional link to a parent event. Set automatically by
+///   [`Context::send_child_event`](crate::Context::send_child_event). The test harness
+///   uses correlation to build event chains (`EventChain`, `ActorTrace`, `EventTrace`).
 #[derive(Debug, Clone, PartialEq, Eq, hash::Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Meta {

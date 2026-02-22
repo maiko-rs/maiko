@@ -1,11 +1,12 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 //! # Maiko
 //!
-//! A lightweight actor runtime for Tokio with topic-based pub/sub routing.
+//! A topic-based pub/sub actor runtime for Tokio.
 //!
-//! Maiko provides independent actors that communicate through asynchronous events -no shared
-//! memory, no locks, no channel wiring. Each actor processes messages sequentially from its
-//! own mailbox, making concurrent systems easier to reason about.
+//! Maiko helps you build multi-task Tokio applications without manually wiring
+//! channels or spawning tasks. Declare actors and subscriptions, and Maiko handles
+//! event routing and lifecycle management. Think Kafka-style pub/sub, but embedded
+//! in your Tokio application.
 //!
 //! ## Quick Start
 //!
@@ -79,7 +80,7 @@
 //!
 //! Events pass through two channel stages:
 //!
-//! 1. **Stage 1** (producer to broker) - shared channel, always blocks when full
+//! 1. **Stage 1** (producer to broker) - per-actor channel, always blocks when full
 //! 2. **Stage 2** (broker to subscriber) - per-actor channel, governed by [`OverflowPolicy`]
 //!
 //! Override [`Topic::overflow_policy()`] to control stage 2 behavior per topic:
@@ -172,5 +173,10 @@ pub use topic::{DefaultTopic, Topic};
 #[cfg_attr(docsrs, doc(cfg(feature = "macros")))]
 pub use maiko_macros::{Event, Label, SelfRouting};
 
+/// Convenience alias for `Result<T, maiko::Error>`.
 pub type Result<T = ()> = std::result::Result<T, Error>;
+
+/// Unique event identifier. Currently a UUID v4 stored as `u128`.
+///
+/// Not monotonic - use [`Meta::timestamp()`] for creation-order sorting.
 pub type EventId = u128;
