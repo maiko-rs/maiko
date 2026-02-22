@@ -4,6 +4,12 @@ use tokio::sync::mpsc::error::{SendError, TrySendError};
 
 use crate::{ActorId, Envelope};
 
+/// The single error type for all Maiko operations.
+///
+/// Every fallible Maiko API returns `maiko::Result<T>` (alias for
+/// `Result<T, maiko::Error>`). Errors from lower layers (Tokio channels,
+/// IO, task joins) are mapped into variants of this enum so callers only
+/// need to handle one error type.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Actor's context must be set by this point")]

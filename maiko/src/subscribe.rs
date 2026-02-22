@@ -10,7 +10,7 @@ use crate::{Event, Topic, internal::Subscription};
 /// - [`Subscribe::none()`]  - receive no events (e.g., pure event producers)
 /// - [`Subscribe::to`] - receive events on specific topics
 ///
-/// For convenience, `&[T]` converts to `Subscribe` automatically:
+/// For convenience, `&[T]` and `[T]` converts to `Subscribe` automatically:
 ///
 /// ```ignore
 /// // These are equivalent:
