@@ -79,7 +79,7 @@
 //!
 //! Events pass through two channel stages:
 //!
-//! 1. **Stage 1** (producer to broker) - shared channel, always blocks when full
+//! 1. **Stage 1** (producer to broker) - per-actor channel, always blocks when full
 //! 2. **Stage 2** (broker to subscriber) - per-actor channel, governed by [`OverflowPolicy`]
 //!
 //! Override [`Topic::overflow_policy()`] to control stage 2 behavior per topic:

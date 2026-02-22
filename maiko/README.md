@@ -18,7 +18,7 @@
 
 Actors are named components with their own state. They communicate through events routed by topic, without knowing who's listening. Think Kafka-style pub/sub, but embedded in your Tokio application.
 
-Maiko comes with a built-in [test harness](docs/testing.md) for asserting on event flow, correlation tracking for tracing event propagation, and monitoring hooks for observability — all without external infrastructure.
+Maiko comes with a built-in [test harness](docs/testing.md) for asserting on event flow, correlation tracking for tracing event propagation, and monitoring hooks for observability - all without external infrastructure.
 
 ### No more channel spaghetti
 
@@ -51,7 +51,7 @@ sup.add_actor("logger",    |ctx| Logger::new(ctx),    Subscribe::all())?;       
 | Correlation | First-class (correlation IDs, chain tracing) | Manual | Manual | Headers |
 | Scope | In-process | In-process | In-process | Distributed |
 
-Maiko sits between raw Tokio and full actor frameworks. Think of it as moving from breadboard to PCB — same components, reliable traces, testable as a whole.
+Maiko sits between raw Tokio and full actor frameworks. Think of it as moving from breadboard to PCB - same components, reliable traces, testable as a whole.
 
 ### Where it fits
 
@@ -177,7 +177,7 @@ impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
     }
 }
 
-let handle = sup.monitors().add(EventLogger).await;
+let handle = supervisor.monitors().add(EventLogger).await;
 ```
 
 Enable with `features = ["monitoring"]`. See **[Monitoring Documentation](docs/monitoring.md)** for details.
@@ -189,11 +189,11 @@ Enable with `features = ["monitoring"]`. See **[Monitoring Documentation](docs/m
 - **[Getting Started](docs/getting-started.md)** - Step-by-step tutorial
 - **[Why Maiko?](docs/why-maiko.md)** - Motivation, comparisons, design philosophy
 - **[Core Concepts](docs/concepts.md)** - Events, Topics, Actors, Context, Supervisor
+- **[FAQ](docs/faq.md)** - Common questions answered
 - **[Monitoring](docs/monitoring.md)** - Event lifecycle hooks, metrics collection
 - **[Test Harness](docs/testing.md)** - Recording, spies, queries, assertions
 - **[Advanced Topics](docs/advanced.md)** - Error handling, configuration, flow control
-- **[FAQ](docs/faq.md)** - Common questions answered
-- **[API Reference](https://docs.rs/maiko)** - Complete API documentation
+- **[API Reference on docs.rs](https://docs.rs/maiko)** - Complete API documentation
 
 ---
 
@@ -201,7 +201,7 @@ Enable with `features = ["monitoring"]`. See **[Monitoring Documentation](docs/m
 
 **Near-term:**
 - Dynamic actor spawning/removal at runtime
-- Improved supervision and error handling strategies
+- Improved lifecycle strategies (restart, retry, etc)
 
 **Future:**
 - `maiko-actors` crate with reusable actors (IPC bridges, WebSocket, OpenTelemetry)
@@ -211,7 +211,7 @@ Enable with `features = ["monitoring"]`. See **[Monitoring Documentation](docs/m
 
 ## Used In
 
-Maiko powers the daemon in [**Charon**](https://github.com/ddrcode/charon) - a USB keyboard pass-through device built on Raspberry Pi. See [Why Maiko?](docs/why-maiko.md#real-world-charon) for details.
+[Charon](https://github.com/ddrcode/charon) is a USB keyboard pass-through device built on Raspberry Pi. Its daemon uses Maiko actors to read input from multiple keyboards, map and translate key events, output USB HID to the host, and coordinate telemetry, IPC, and power management. Each concern is an actor; topics route events by type (key events, HID reports, commands, telemetry).
 
 ---
 
@@ -225,21 +225,14 @@ For now, Maiko demonstrates what it wants to be. That's the state I wanted to re
 
 ## Contributing
 
-Contributions welcome! Whether it's a bug report, feature idea, or pull request — all input is appreciated.
+Contributions welcome! Whether it's a bug report, feature idea, or pull request - all input is appreciated.
 
-- **Try it out** and let us know what you think
+- **Try it out** and [let us know what you think
+](https://github.com/maiko-rs/maiko/discussions/41)
 - **Report issues** via [GitHub Issues](https://github.com/maiko-rs/maiko/issues)
 - **Looking to contribute code?** Check out [good first issues](https://github.com/maiko-rs/maiko/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
 
-See **[CONTRIBUTING.md](https://github.com/maiko-rs/maiko/CONTRIBUTING.md)** for branching guidelines, issue labels, and how to submit a PR.
-
----
-
-## Acknowledgments
-
-Inspired by [Kafka](https://kafka.apache.org/) (topic-based routing) and built on [Tokio](https://tokio.rs/) (async runtime).
-
----
+See **[CONTRIBUTING.md](https://github.com/maiko-rs/maiko/blob/main/CONTRIBUTING.md)** for branching guidelines, issue labels, and how to submit a PR.
 
 ---
 

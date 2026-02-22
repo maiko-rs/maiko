@@ -33,7 +33,8 @@ For detailed comparisons, use cases, and when to choose alternatives, see **[Why
 |---------|-------|
 | 0.1.0 | Core actor model, basic routing |
 | 0.2.0 | Monitoring, test harness, API refinements |
-| 0.3.0 (planned) | Error handling, supervision, backpressure |
+| 0.2.5 | Backpressure, per-actor configuration, overflow policies |
+| 0.3.0 (planned) | Supervision, dynamic actors, improved error handling |
 | 1.0.0 (future) | API stability guarantee |
 
 **What this means**:
@@ -45,7 +46,7 @@ For detailed comparisons, use cases, and when to choose alternatives, see **[Why
 **Known limitations**:
 - No dynamic actor registration after startup (planned)
 - Limited error recovery (actors crash on unhandled errors)
-- No backpressure strategy (slow consumers can affect the system)
+- Single broker (scaling to multiple brokers planned)
 
 ## How do I test a Maiko application?
 
@@ -167,7 +168,7 @@ Maiko is in-process only - all actors run within a single Tokio runtime. There's
 
 However, events are serializable. Enable the `serde` feature and your events can be sent over the wire. You can build bridge actors that forward events to external systems via IPC, WebSockets, or message queues.
 
-**Real-world example**: Charon uses a bridge actor to expose Maiko events over a Linux Unix socket, allowing external processes to communicate with the daemon.
+**Real-world example**: Charon uses a bridge actor to expose Maiko events over a Unix socket, allowing external processes to communicate with the daemon.
 
 For true distributed actors across machines with automatic routing, consider Ractor.
 
@@ -180,9 +181,10 @@ Maiko (舞妓) are apprentice geisha in Kyoto, known for their coordinated tradi
 Yes, absolutely! Contributions of all kinds are welcome - bug reports, feature ideas, documentation improvements, or code.
 
 **Ways to get involved**:
-- **Try it out** and share your experience
+- **Try it out** and [share your experience](https://github.com/maiko-rs/maiko/discussions/41)
 - **Report issues** or suggest improvements via [GitHub Issues](https://github.com/maiko-rs/maiko/issues)
 - **Pick up a task** from [good first issues](https://github.com/maiko-rs/maiko/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
 - **Ask questions** - if something's unclear, that's a documentation bug
+- Check [CONTRIBUTING.md](https://github.com/maiko-rs/maiko/blob/main/CONTRIBUTING.md) for details
 
 Maiko is a young project and your input genuinely shapes its direction. Whether you're fixing a typo or proposing a major feature, it's appreciated.
