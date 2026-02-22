@@ -147,9 +147,9 @@ async fn test_event_delivery() -> Result<()> {
     let mut test = Harness::new(&mut sup).await;
     sup.start().await?;
 
-    test.start_recording().await;
+    test.record().await;
     let id = test.send_as(&producer, MyEvent::Data(42)).await?;
-    test.stop_recording().await;
+    test.settle().await;
 
     assert!(test.event(id).was_delivered_to(&consumer));
     assert_eq!(1, test.actor(&consumer).events_received());
@@ -227,8 +227,7 @@ For now, Maiko demonstrates what it wants to be. That's the state I wanted to re
 
 Contributions welcome! Whether it's a bug report, feature idea, or pull request - all input is appreciated.
 
-- **Try it out** and [let us know what you think
-](https://github.com/maiko-rs/maiko/discussions/41)
+- **Try it out** and [let us know what you think](https://github.com/maiko-rs/maiko/discussions/41)
 - **Report issues** via [GitHub Issues](https://github.com/maiko-rs/maiko/issues)
 - **Looking to contribute code?** Check out [good first issues](https://github.com/maiko-rs/maiko/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
 

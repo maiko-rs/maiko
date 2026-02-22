@@ -178,5 +178,5 @@ pub type Result<T = ()> = std::result::Result<T, Error>;
 
 /// Unique event identifier. Currently a UUID v4 stored as `u128`.
 ///
-/// Not monotonic — use [`Meta::timestamp()`] for creation-order sorting.
+/// Not monotonic - use [`Meta::timestamp()`] for creation-order sorting.
 pub type EventId = u128;

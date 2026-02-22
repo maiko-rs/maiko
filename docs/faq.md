@@ -70,9 +70,9 @@ async fn test_temperature_alert() -> Result<()> {
     sup.start().await?;
 
     // Record what happens when we inject a high temperature reading
-    harness.start_recording().await;
+    harness.record().await;
     let event_id = harness.send_as(&sensor, WeatherEvent::Temperature(45.0)).await?;
-    harness.stop_recording().await;
+    harness.settle().await;
 
     // Verify the alert actor received the reading
     assert!(harness.event(event_id).was_delivered_to(&alert));

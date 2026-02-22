@@ -33,20 +33,20 @@ On top of that routing core:
 
 Maiko excels at **event-centric systems** where data flows through independent processors.
 
-**Long-running daemons** — the comfort zone. Monitoring agents, IoT data collectors, system daemons. Actors map naturally to hardware or service boundaries. Topics route by severity, data type, or lifecycle stage.
+**Long-running daemons** - the comfort zone. Monitoring agents, IoT data collectors, system daemons. Actors map naturally to hardware or service boundaries. Topics route by severity, data type, or lifecycle stage.
 
-**Data pipelines** — sensor readings, stock ticks, telemetry streams. Events flow through processors that normalize, enrich, filter, and store. Each stage is an actor; adding a stage doesn't change existing ones.
+**Data pipelines** - sensor readings, stock ticks, telemetry streams. Events flow through processors that normalize, enrich, filter, and store. Each stage is an actor; adding a stage doesn't change existing ones.
 
-**Batch processors** — Maiko isn't only for daemons. Exchange tick data processing, file transformation pipelines, ETL jobs. "Runs, does a job, ends" is a valid pattern. Dynamic actors (planned) will make per-file or per-unit processing natural.
+**Batch processors** - Maiko isn't only for daemons. Exchange tick data processing, file transformation pipelines, ETL jobs. "Runs, does a job, ends" is a valid pattern. Dynamic actors (planned) will make per-file or per-unit processing natural.
 
 **Domains where this pattern fits:**
 
-- **IoT / Embedded** — device signals, sensor readings, hardware events
-- **Telemetry** — log processing, metrics aggregation, monitoring
-- **Pipelines** — data transformation, enrichment, routing
-- **Background jobs** — task coordination, workflow orchestration
-- **Game engines** — entity systems, input handling
-- **Reactive architectures** — event sourcing, CQRS
+- **IoT / Embedded** - device signals, sensor readings, hardware events
+- **Telemetry** - log processing, metrics aggregation, monitoring
+- **Pipelines** - data transformation, enrichment, routing
+- **Background jobs** - task coordination, workflow orchestration
+- **Game engines** - entity systems, input handling
+- **Reactive architectures** - event sourcing, CQRS
 
 ### Multi-role vs. multi-instance
 
@@ -137,7 +137,7 @@ actor_ref.tell(message);  // Must know the actor's address
 ctx.send(event).await?;   // Only knows about event types
 ```
 
-This decoupling enables optimization. Because actors never hold direct references to each other, Maiko can rewire internals based on subscription topology — 1:1 mappings can bypass the broker, fan-out can be parallelized — all invisible to user code, testing, and observability.
+This decoupling enables optimization. Because actors never hold direct references to each other, Maiko can rewire internals based on subscription topology - 1:1 mappings can bypass the broker, fan-out can be parallelized - all invisible to user code, testing, and observability.
 
 ### Unidirectional Flow
 
@@ -151,7 +151,7 @@ No request-response, no callbacks, no circular dependencies. This makes systems 
 
 ### Actors as Domain Entities
 
-Actors are named domain entities with responsibility boundaries, not anonymous dataflow nodes. The scanner isn't "a function from key events to HID reports" — it's *the scanner*. Identity enables the test harness API (`test.actor(&scanner)`), debugging, and domain reasoning.
+Actors are named domain entities with responsibility boundaries, not anonymous dataflow nodes. The scanner isn't "a function from key events to HID reports" - it's *the scanner*. Identity enables the test harness API (`test.actor(&scanner)`), debugging, and domain reasoning.
 
 ### Convenient, Not Dumbed Down
 

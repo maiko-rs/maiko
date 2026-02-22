@@ -10,13 +10,13 @@ Architectural choices that shaped Maiko, and why.
 - **Composite u128** (random process prefix + monotonic counter) - solves cross-process uniqueness, but reinvents UUID with more code and a custom scheme to document.
 - **Composite u64** (smaller prefix + counter) - trades collision probability math and counter overflow limits for 8 bytes of savings per event. Not worth the constraints.
 
-UUID v4 is globally unique, universally understood, zero-configuration, and the `uuid` crate is small. Monotonic ordering is not needed — `Meta.timestamp()` provides creation-order sorting.
+UUID v4 is globally unique, universally understood, zero-configuration, and the `uuid` crate is small. Monotonic ordering is not needed - `meta.timestamp()` provides creation-order sorting.
 
 ## Correlation as a First-Class Concept
 
 Every event carries an optional `correlation_id: Option<EventId>` in its metadata. This is a deliberate design choice - correlation lives in Maiko's infrastructure, not in user event payloads.
 
-This enables the [test harness](docs/testing.md) to trace event propagation chains, generate Mermaid sequence diagrams, and verify actor flow - without requiring users to thread tracking IDs through their event types. The extra metadata field is a small cost for system-wide observability.
+This enables the [test harness](testing.md) to trace event propagation chains, generate Mermaid sequence diagrams, and verify actor flow - without requiring users to thread tracking IDs through their event types. The extra metadata field is a small cost for system-wide observability.
 
 For cross-process scenarios, a bridge actor creates local events correlated to foreign IDs. Since both sides use the same `EventId` type (`u128`), foreign Maiko IDs fit natively as correlation targets. Mapping between Maiko IDs and non-Maiko systems is the integrator's responsibility.
 

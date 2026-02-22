@@ -10,12 +10,12 @@ maiko = { version = "0.2", features = ["test-harness"] }
 ## Overview
 
 The test harness enables:
-- **Event recording** — capture all event deliveries during a test
-- **Event injection** — send events as if they came from specific actors
-- **Condition-based settling** — wait until specific events appear
-- **Spies** — inspect events from different perspectives (event, actor, topic)
-- **Queries** — filter and search recorded events
-- **Event chains** — trace event propagation through correlation IDs
+- **Event recording** - capture all event deliveries during a test
+- **Event injection** - send events as if they came from specific actors
+- **Condition-based settling** - wait until specific events appear
+- **Spies** - inspect events from different perspectives (event, actor, topic)
+- **Queries** - filter and search recorded events
+- **Event chains** - trace event propagation through correlation IDs
 
 ## Basic Usage
 
@@ -70,7 +70,7 @@ The returned `event_id` can be used to inspect the event's delivery.
 
 ## Settling
 
-### settle() — silence-based
+### settle() - silence-based
 
 Drains events until the system is quiet (no new events for 1ms, or 10ms total). Use for simple send-and-check tests:
 
@@ -80,7 +80,7 @@ test.send_as(&producer, MyEvent::Trigger).await?;
 test.settle().await;
 ```
 
-### settle_on() — condition-based
+### settle_on() - condition-based
 
 Waits until a predicate is satisfied. Returns `Error::SettleTimeout` if the condition isn't met within the timeout (default 1 second):
 
@@ -97,9 +97,9 @@ test.settle_on(|events| events.with_label("Pong").exists())
 test.settle_on(|events| events.sent_by(&alice).with_label("Ping").exists()).await?;
 ```
 
-### settle_on_event() — wait for a specific event
+### settle_on_event() - wait for a specific event
 
-Shorthand for the most common case — waiting for a specific event to appear:
+Shorthand for the most common case - waiting for a specific event to appear:
 
 ```rust
 // By label (requires Event: Label)
@@ -405,9 +405,9 @@ The test harness uses an **unbounded channel** to collect events. This design ch
 
 However, in production this means:
 
-- **Unbounded memory growth** — A fast producer with a slow consumer will accumulate events indefinitely
-- **No backpressure** — The system won't slow down when overwhelmed
-- **Memory exhaustion risk** — Long-running systems can run out of memory
+- **Unbounded memory growth** - A fast producer with a slow consumer will accumulate events indefinitely
+- **No backpressure** - The system won't slow down when overwhelmed
+- **Memory exhaustion risk** - Long-running systems can run out of memory
 
 ### For Production Monitoring
 

@@ -10,18 +10,18 @@ maiko = { version = "0.2", features = ["monitoring"] }
 ## Overview
 
 The monitoring system provides hooks into the event lifecycle:
-- **Event dispatched** — when the broker routes an event to a subscriber
-- **Event delivered** — when an actor receives an event from its mailbox
-- **Event handled** — when an actor finishes processing an event
-- **Overflow** — when a subscriber's channel is full and an overflow policy is triggered
-- **Errors** — when an actor's event handler returns an error
-- **Actor lifecycle** — when actors register and stop
+- **Event dispatched** - when the broker routes an event to a subscriber
+- **Event delivered** - when an actor receives an event from its mailbox
+- **Event handled** - when an actor finishes processing an event
+- **Overflow** - when a subscriber's channel is full and an overflow policy is triggered
+- **Errors** - when an actor's event handler returns an error
+- **Actor lifecycle** - when actors register and stop
 
 Monitors are useful for:
-- **Debugging** — trace event flow through the system
-- **Metrics** — collect timing, counts, and throughput data
-- **Logging** — structured event logs for observability
-- **Testing** — the [test harness](testing.md) is built on top of monitoring
+- **Debugging** - trace event flow through the system
+- **Metrics** - collect timing, counts, and throughput data
+- **Logging** - structured event logs for observability
+- **Testing** - the [test harness](testing.md) is built on top of monitoring
 
 ## Basic Usage
 
@@ -151,9 +151,9 @@ pub trait Monitor<E: Event, T: Topic<E>>: Send {
 
 Events flow through these stages:
 
-1. **Dispatched** — Broker determines the topic and sends to each subscriber
-2. **Delivered** — Actor receives the event from its channel
-3. **Handled** — Actor's `handle_event()` completes
+1. **Dispatched** - Broker determines the topic and sends to each subscriber
+2. **Delivered** - Actor receives the event from its channel
+3. **Handled** - Actor's `handle_event()` completes
 
 If a subscriber's channel is full at step 1, `on_overflow` fires instead of `on_event_dispatched`. The overflow policy then determines what happens next (drop, block, or close the channel).
 

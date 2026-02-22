@@ -59,9 +59,9 @@ async fn main() -> Result<()> {
 Key points:
 - **Events** implement `Event` (via derive), `Clone`, and `Debug`
 - **Actors** implement `Actor` with a `handle_event` method
-- **Supervisor** manages actor lifecycles — you register actors, start the system, and stop it
+- **Supervisor** manages actor lifecycles - you register actors, start the system, and stop it
 - **DefaultTopic** is the simplest routing: all events go to all subscribed actors
-- The `|_ctx| WeatherLogger` factory receives a `Context` — we ignore it here since this actor doesn't send events
+- The `|_ctx| WeatherLogger` factory receives a `Context` - we ignore it here since this actor doesn't send events
 
 ## Step 2: Adding a Second Actor
 
@@ -127,7 +127,7 @@ async fn main() -> Result<()> {
 }
 ```
 
-This works: the alerter processes temperatures and emits alerts, the logger observes everything. But with `DefaultTopic`, every subscribed actor receives every event. The alerter filters by pattern match in `handle_event`, silently ignoring `Alert` events it doesn't care about. As systems grow — more event types, more actors — you want routing to be explicit. Custom topics solve this.
+This works: the alerter processes temperatures and emits alerts, the logger observes everything. But with `DefaultTopic`, every subscribed actor receives every event. The alerter filters by pattern match in `handle_event`, silently ignoring `Alert` events it doesn't care about. As systems grow - more event types, more actors - you want routing to be explicit. Custom topics solve this.
 
 ## Step 3: Custom Topics
 
@@ -196,7 +196,7 @@ async fn main() -> Result<()> {
     // Specify both the event type AND the topic type.
     let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
 
-    // Alerter subscribes only to Reading — receives temperatures, not its own alerts.
+    // Alerter subscribes only to Reading - receives temperatures, not its own alerts.
     sup.add_actor("alerter", |ctx| Alerter { ctx, threshold: 35.0 }, &[WeatherTopic::Reading])?;
 
     // Logger subscribes to everything.
@@ -268,7 +268,7 @@ impl Actor for TempSensor {
 }
 ```
 
-Register it with no subscriptions — it produces events but doesn't consume any:
+Register it with no subscriptions - it produces events but doesn't consume any:
 
 ```rust
 sup.add_actor("sensor", |ctx| TempSensor { ctx }, Subscribe::none())?;
@@ -306,7 +306,7 @@ use maiko::monitors::Tracer;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing — without this, Tracer output goes nowhere.
+    // Initialize tracing - without this, Tracer output goes nowhere.
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::TRACE)
         .init();
@@ -421,16 +421,16 @@ mod tests {
 The test harness lets you:
 - **Inject events** as specific actors with `send_as`
 - **Record** all event deliveries during a test window
-- **Settle** — wait until the system is quiet
+- **Settle** - wait until the system is quiet
 - **Assert** on delivery, topic routing, and event counts
 
 For the full harness API (spies, event chains, queries), see [Test Harness Documentation](testing.md).
 
 ## Next Steps
 
-- **[Core Concepts](concepts.md)** — detailed reference for events, topics, actors, context, and supervisor
-- **[Monitoring](monitoring.md)** — custom monitors, metrics collection, event lifecycle hooks
-- **[Testing](testing.md)** — full test harness API: spies, queries, event chains, matchers
-- **[Advanced Topics](advanced.md)** — error handling, configuration, flow control, performance
-- **[Why Maiko?](why-maiko.md)** — motivation, comparisons, and design philosophy
-- **[Examples](../maiko/examples/)** — `pingpong.rs`, `guesser.rs`, `monitoring.rs`
+- **[Core Concepts](concepts.md)** - detailed reference for events, topics, actors, context, and supervisor
+- **[Monitoring](monitoring.md)** - custom monitors, metrics collection, event lifecycle hooks
+- **[Testing](testing.md)** - full test harness API: spies, queries, event chains, matchers
+- **[Advanced Topics](advanced.md)** - error handling, configuration, flow control, performance
+- **[Why Maiko?](why-maiko.md)** - motivation, comparisons, and design philosophy
+- **[Examples](../maiko/examples/)** - `pingpong.rs`, `guesser.rs`, `monitoring.rs`

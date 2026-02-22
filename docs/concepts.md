@@ -25,11 +25,11 @@ enum NetworkEvent {
 ```
 
 Events are:
-- **Cloneable** — events may be delivered to multiple actors
+- **Cloneable** - events may be delivered to multiple actors
 - **Send + Sync** - as they travel between tasks and threads.
 
 Events should be:
-- **Debuggable** — for logging and diagnostics
+- **Debuggable** - for logging and diagnostics
 
 ## Topics
 
@@ -90,8 +90,8 @@ sup.add_actor("processor", factory, &[DefaultTopic])?;
 
 Actors are independent units that process or produce events. They implement the `Actor` trait with two core methods:
 
-- **`handle_event`** — Process incoming events
-- **`step`** — Produce events or perform periodic work
+- **`handle_event`** - Process incoming events
+- **`step`** - Produce events or perform periodic work
 
 ```rust
 struct PacketProcessor {
@@ -127,21 +127,21 @@ Concurrent tasks typically fall into one of three roles: **sources** that produc
 
 | Role | `step()` | `handle_event()` | Subscriptions |
 |------|----------|-------------------|---------------|
-| **Source** | Produces events | No-op (default) | `Subscribe::none()` |
+| **Source** | Produces events | No-op | `Subscribe::none()` |
 | **Sink** | `Never` (default) | Consumes events | Topics it cares about |
 | **Processor** | Optional | Receives events, sends new ones | Selective topics |
 
-A temperature sensor is a source - it uses `step()` to emit readings and subscribes to nothing. A logger is a sink — it handles events but never sends. An alerter is a processor - it receives readings and emits alerts.
+A temperature sensor is a source - it uses `step()` to emit readings and subscribes to nothing. A logger is a sink - it handles events but never sends. An alerter is a processor - it receives readings and emits alerts.
 
-This is a deliberate design choice. A single trait keeps the API small and lets actors evolve. A sink that later needs to emit events just adds a `Context` field — no type change, no rewiring.
+This is a deliberate design choice. A single trait keeps the API small and lets actors evolve. A sink that later needs to emit events just adds a `Context` field - no type change, no rewiring.
 
 ### Lifecycle Hooks
 
 Actors can implement optional lifecycle methods:
 
-- **`on_start`** — Called once when the actor starts
-- **`on_shutdown`** — Called during graceful shutdown
-- **`on_error`** — Handle errors (swallow or propagate)
+- **`on_start`** - Called once when the actor starts
+- **`on_shutdown`** - Called during graceful shutdown
+- **`on_error`** - Handle errors (swallow or propagate)
 
 ```rust
 async fn on_start(&mut self) -> Result<()> {
@@ -185,7 +185,7 @@ Context capabilities:
 ctx.send(NetworkEvent::PacketReceived(data)).await?;
 
 // Send with correlation (for tracking related events)
-ctx.send_child_event(ResponseEvent::Ok, &envelope.meta).await?;
+ctx.send_child_event(ResponseEvent::Ok, envelope.meta()).await?;
 
 // Stop this actor
 ctx.stop();
@@ -201,12 +201,11 @@ The `Supervisor` manages actor lifecycles and provides registration APIs.
 ### Simple API
 
 ```rust
-let mut sup = Supervisor::<NetworkEvent>::default();
+let mut sup = Supervisor::<NetworkEvent, NetworkTopic>::default();
 
 sup.add_actor("ingress", |ctx| IngressActor::new(ctx), &[NetworkTopic::Ingress])?;
 sup.add_actor("egress", |ctx| EgressActor::new(ctx), &[NetworkTopic::Egress])?;
-sup.add_actor("monitor", MonitorActor::new, Subscribe::All())?; // no need to wrap constructor call
-with a closure
+sup.add_actor("monitor", MonitorActor::new, Subscribe::all())?; // no closure needed
 ```
 
 ### Actor Builder
@@ -220,7 +219,7 @@ sup.build_actor("writer", |ctx| Writer::new(ctx))
     .build()?;
 ```
 
-See [Advanced Topics — Per-Actor Config](advanced.md#per-actor-config) for details.
+See [Advanced Topics - Per-Actor Config](advanced.md#per-actor-config) for details.
 
 ### Runtime Control
 
@@ -324,9 +323,9 @@ async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()>
     let event = envelope.event();
 
     // Access metadata
-    let sender = envelope.meta.actor_name();
-    let event_id = envelope.meta.id();
-    let correlation = envelope.meta.correlation_id();
+    let sender = envelope.meta().actor_name();
+    let event_id = envelope.meta().id();
+    let correlation = envelope.meta().correlation_id();
 
     // Send correlated child event
     self.ctx.send_child_event(ResponseEvent::Ok, envelope.meta()).await?;

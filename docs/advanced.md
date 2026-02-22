@@ -75,7 +75,7 @@ sup.add_actor("processor", |ctx| Processor::new(ctx), &[Topic::Data])?;
 ```
 
 `add_actor` always uses global defaults. When an actor needs different settings
-— typically slow consumers or actors handling bursty traffic — use
+- typically slow consumers or actors handling bursty traffic - use
 `build_actor`. For settings without a direct shorthand, use `with_config`:
 
 ```rust
@@ -93,21 +93,21 @@ Track event causality with correlation IDs:
 ```rust
 async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
     // Check correlation
-    if let Some(parent_id) = envelope.meta.correlation_id() {
+    if let Some(parent_id) = envelope.meta().correlation_id() {
         println!("This event was triggered by: {}", parent_id);
     }
 
     // Send a correlated child event
     self.ctx.send_child_event(
         MyEvent::Response(data),
-        &envelope.meta  // Links new event to this one
+        envelope.meta()  // Links new event to this one
     ).await?;
 
     Ok(())
 }
 ```
 
-Child events carry their parent's ID as `correlation_id`, enabling tracing of event chains through the system. The [test harness](testing.md) uses correlation to track event propagation — `EventChain`, `ActorTrace`, and `EventTrace` let you assert on causal chains without manual bookkeeping.
+Child events carry their parent's ID as `correlation_id`, enabling tracing of event chains through the system. The [test harness](testing.md) uses correlation to track event propagation - `EventChain`, `ActorTrace`, and `EventTrace` let you assert on causal chains without manual bookkeeping.
 
 ## Flow Control
 
@@ -171,5 +171,5 @@ Start with defaults and tune based on profiling.
 
 ### Payload Size
 
-Maiko can handle larger events efficently as each `Envelope` is wrapped in `Arc` before sending.
+Maiko can handle larger events efficiently as each `Envelope` is wrapped in `Arc` before sending.
 It means there is no memory overhead while sending the same event to multiple actors.
