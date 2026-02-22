@@ -43,7 +43,8 @@ impl<E> Context<E> {
         }
     }
 
-    /// Send an event to the broker. The envelope will carry this actor's name.
+    /// Send an event to the broker. Accepts any type that converts into `E`.
+    /// The envelope will carry this actor's name.
     /// This awaits channel capacity (backpressure) to avoid silent drops.
     pub async fn send<T: Into<E>>(&self, event: T) -> Result<()> {
         let envelope = Envelope::new(event.into(), self.actor_id.clone());

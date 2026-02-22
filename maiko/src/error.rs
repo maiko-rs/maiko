@@ -30,7 +30,7 @@ pub enum Error {
     #[error("Subscriber with name '{0}' already exists.")]
     SubscriberAlreadyExists(ActorId),
 
-    #[error("Error external to Maiko occured: {0}")]
+    #[error("Error external to Maiko occurred: {0}")]
     External(Arc<str>),
 
     #[error("IO Error: {0}")]

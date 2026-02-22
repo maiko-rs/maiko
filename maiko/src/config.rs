@@ -69,11 +69,13 @@ impl Config {
         self.with_broker_channel_capacity(size)
     }
 
+    /// Set the per-actor channel capacity for stage 1 (actor to broker).
     pub fn with_broker_channel_capacity(mut self, capacity: usize) -> Self {
         self.channel_size = capacity;
         self
     }
 
+    /// Returns the per-actor channel capacity for stage 1 (actor to broker).
     pub fn broker_channel_capacity(&self) -> usize {
         self.channel_size
     }
@@ -97,11 +99,13 @@ impl Config {
         self.with_default_max_events_per_tick(limit)
     }
 
+    /// Set the default maximum events processed per tick for new actors.
     pub fn with_default_max_events_per_tick(mut self, limit: usize) -> Self {
         self.max_events_per_tick = limit;
         self
     }
 
+    /// Returns the default maximum events processed per tick.
     pub fn default_max_events_per_tick(&self) -> usize {
         self.max_events_per_tick
     }
@@ -114,6 +118,7 @@ impl Config {
         self
     }
 
+    /// Returns the broker maintenance interval.
     pub fn maintenance_interval(&self) -> tokio::time::Duration {
         self.maintenance_interval
     }
@@ -126,20 +131,24 @@ impl Config {
         self.with_monitoring_channel_capacity(size)
     }
 
+    /// Set the buffer size for the monitoring event channel.
     pub fn with_monitoring_channel_capacity(mut self, capacity: usize) -> Self {
         self.monitoring_channel_size = capacity;
         self
     }
 
+    /// Returns the monitoring event channel capacity.
     pub fn monitoring_channel_capacity(&self) -> usize {
         self.monitoring_channel_size
     }
 
+    /// Set the default mailbox channel capacity for new actors (stage 2).
     pub fn with_default_actor_channel_capacity(mut self, capacity: usize) -> Self {
         self.default_actor_channel_capacity = capacity;
         self
     }
 
+    /// Returns the default mailbox channel capacity for new actors.
     pub fn default_actor_channel_capacity(&self) -> usize {
         self.default_actor_channel_capacity
     }

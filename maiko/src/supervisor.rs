@@ -268,14 +268,14 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// 1. Waits for the broker to receive all pending events (up to 10 ms)
     /// 2. Stops the broker and waits for it to drain actor queues
-    /// 3. Cancels all actors and waits for tasks t
+    /// 3. Cancels all actors and waits for tasks to complete
     pub async fn stop(&mut self) -> Result<()> {
         use tokio::time::*;
         let start = Instant::now();
         let timeout = Duration::from_millis(10);
         let max = self.sender.max_capacity();
 
-        // 1. Wait for the main channle to drain
+        // 1. Wait for the main channel to drain
         while start.elapsed() < timeout {
             if self.sender.capacity() == max {
                 break;
@@ -283,7 +283,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             sleep(Duration::from_micros(100)).await;
         }
 
-        // 2. Wait the the broker to shutdown gracefully
+        // 2. Wait for the broker to shutdown gracefully
         self.broker_cancel_token.cancel();
         let _ = self.broker.lock().await;
 
