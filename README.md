@@ -6,7 +6,8 @@
 
 [![Crates.io](https://img.shields.io/crates/v/maiko.svg)](https://crates.io/crates/maiko)
 [![Documentation](https://docs.rs/maiko/badge.svg)](https://docs.rs/maiko)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+[![Rust API Guidelines](https://img.shields.io/badge/Rust_API_Guidelines-passing-green)](https://rust-lang.github.io/api-guidelines/checklist.html)
 
 </div>
 
@@ -173,7 +174,7 @@ struct EventLogger;
 
 impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
     fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
-        println!("[handled] {} by {}", envelope.id(), receiver.name());
+        println!("[handled] {} by {}", envelope.id(), receiver.as_str());
     }
 }
 

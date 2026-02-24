@@ -12,13 +12,13 @@ Architectural choices that shaped Maiko, and why.
 
 UUID v4 is globally unique, universally understood, zero-configuration, and the `uuid` crate is small. Monotonic ordering is not needed - `meta.timestamp()` provides creation-order sorting.
 
-## Correlation as a First-Class Concept
+## Parent Tracking as a First-Class Concept
 
-Every event carries an optional `correlation_id: Option<EventId>` in its metadata. This is a deliberate design choice - correlation lives in Maiko's infrastructure, not in user event payloads.
+Every event carries an optional `parent_id: Option<EventId>` in its metadata. This is a deliberate design choice - event causality lives in Maiko's infrastructure, not in user event payloads.
 
 This enables the [test harness](testing.md) to trace event propagation chains, generate Mermaid sequence diagrams, and verify actor flow - without requiring users to thread tracking IDs through their event types. The extra metadata field is a small cost for system-wide observability.
 
-For cross-process scenarios, a bridge actor creates local events correlated to foreign IDs. Since both sides use the same `EventId` type (`u128`), foreign Maiko IDs fit natively as correlation targets. Mapping between Maiko IDs and non-Maiko systems is the integrator's responsibility.
+For cross-process scenarios, a bridge actor creates local events linked to foreign IDs. Since both sides use the same `EventId` type (`u128`), foreign Maiko IDs fit natively as parent references. Mapping between Maiko IDs and non-Maiko systems is the integrator's responsibility.
 
 ## Backpressure Over Fire-and-Forget
 

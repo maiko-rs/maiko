@@ -10,8 +10,8 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope, Error,
-    Event, Label, Result, Subscribe, Topic,
+    Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope,
+    EnvelopeBuilder, Error, Event, Label, Result, Subscribe, Topic,
     internal::{ActorController, Broker, Subscriber, Subscription},
 };
 
@@ -71,7 +71,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             monitoring
         };
 
-        let supervisor_id = ActorId::new(Arc::from("supervisor"));
+        let supervisor_id = ActorId::new("supervisor");
 
         let broker_cancel_token = Arc::new(CancellationToken::new());
         let mut broker = Broker::new(
@@ -107,6 +107,12 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// * `name` - Actor identifier used for metadata and routing
     /// * `factory` - Closure that receives a Context and returns the actor
     /// * `topics` - Slice of topics the actor subscribes to
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::DuplicateActorName`] if an actor with the same name
+    /// is already registered. Returns [`Error::BrokerAlreadyStarted`] if
+    /// called after [`start()`](Self::start).
     ///
     /// # Example
     ///
@@ -218,14 +224,14 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         name: &str,
         sender: Sender<Arc<Envelope<E>>>,
     ) -> Context<E> {
-        Context::<E> {
-            actor_id: ActorId::new(Arc::<str>::from(name)),
-            sender,
-            alive: Arc::new(AtomicBool::new(true)),
-        }
+        Context::<E>::new(ActorId::new(name), sender, Arc::new(AtomicBool::new(true)))
     }
 
     /// Start the broker loop in a background task. This returns immediately.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible, but returns `Result` for forward compatibility.
     pub async fn start(&mut self) -> Result<()> {
         let broker = self.broker.clone();
         self.tasks
@@ -236,6 +242,11 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
     /// Waits until at least one of the actor tasks completes then
     /// triggers a shutdown if not already requested.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ActorJoinError`] if an actor task panics.
+    /// Propagates any error returned by [`stop()`](Self::stop).
     pub async fn join(&mut self) -> Result<()> {
         while let Some(res) = self.tasks.join_next().await {
             if !self.cancel_token.is_cancelled() {
@@ -249,16 +260,26 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
     /// Convenience method to start and then await completion of all tasks.
     /// Blocks until shutdown.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error from [`start()`](Self::start) or [`join()`](Self::join).
     pub async fn run(&mut self) -> Result<()> {
         self.start().await?;
         self.join().await
     }
 
     /// Emit an event into the broker from the supervisor.
-    pub async fn send(&self, event: E) -> Result<()> {
-        self.sender
-            .send(Envelope::new(event, self.supervisor_id.clone()).into())
-            .await?;
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`] if the broker channel is closed.
+    pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result<()> {
+        let envelope = builder
+            .into()
+            .with_actor_id(self.supervisor_id.clone())
+            .build()?;
+        self.sender.send(envelope.into()).await?;
         Ok(())
     }
 
@@ -269,6 +290,10 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// 1. Waits for the broker to receive all pending events (up to 10 ms)
     /// 2. Stops the broker and waits for it to drain actor queues
     /// 3. Cancels all actors and waits for tasks to complete
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ActorJoinError`] if an actor task panics during shutdown.
     pub async fn stop(&mut self) -> Result<()> {
         use tokio::time::*;
         let start = Instant::now();
@@ -342,7 +367,7 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
 
         // For each registration, add edges from topics to actors
         for (actor_id, subscription) in &self.registrations {
-            let actor_name = actor_id.name();
+            let actor_name = actor_id.as_str();
             match subscription {
                 Subscription::All => {
                     for topic_name in &all_topics {
@@ -452,7 +477,7 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
             subs.sort();
 
             exports.push(ActorSubscriptionExport {
-                actor_id: actor_id.name().to_string(),
+                actor_id: actor_id.to_string(),
                 subscriptions: subs,
             });
         }

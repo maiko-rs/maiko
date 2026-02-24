@@ -18,9 +18,21 @@ use crate::{OverflowPolicy, event::Event};
 /// Trait bounds: refer to the event trait as [`crate::Event`] in generic
 /// signatures to avoid confusion with the `Event` derive macro.
 pub trait Topic<E: Event>: Hash + PartialEq + Eq + Clone + Send + Sync + 'static {
-    fn from_event(event: &E) -> Self
-    where
-        Self: Sized;
+    /// Classify an event into a topic.
+    ///
+    /// Called by the broker for every incoming event to determine which
+    /// subscribers should receive it. Each subscriber registered for the
+    /// returned topic gets a copy of the event.
+    ///
+    /// ```rust,ignore
+    /// fn from_event(event: &MyEvent) -> Self {
+    ///     match event {
+    ///         MyEvent::Data(_) => MyTopic::Data,
+    ///         MyEvent::Control(_) => MyTopic::Control,
+    ///     }
+    /// }
+    /// ```
+    fn from_event(event: &E) -> Self;
 
     /// Returns the overflow policy for this topic.
     ///
@@ -54,12 +66,12 @@ pub trait Topic<E: Event>: Hash + PartialEq + Eq + Clone + Send + Sync + 'static
 ///
 /// # Examples
 ///
-/// ```rust, ignore
+/// ```rust,ignore
 /// use maiko::{Supervisor, DefaultTopic};
 /// let mut sup = Supervisor::<MyEvent>::default();
 /// sup.add_actor("actor", |ctx| MyActor { ctx }, &[DefaultTopic])?;
 /// ```
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub struct DefaultTopic;
 
 impl<E: Event> Topic<E> for DefaultTopic {

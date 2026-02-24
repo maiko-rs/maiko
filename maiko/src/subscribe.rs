@@ -17,6 +17,7 @@ use crate::{Event, Topic, internal::Subscription};
 /// sup.add_actor("a", factory, &[Topic::Data])?;
 /// sup.add_actor("a", factory, Subscribe::to([Topic::Data]))?;
 /// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Subscribe<E: Event, T: Topic<E>>(
     pub(crate) Subscription<T>,
     PhantomData<fn() -> E>, // invariant over E

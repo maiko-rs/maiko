@@ -1,10 +1,11 @@
 //! Event chain tracing for testing event propagation.
 //!
 //! An `EventChain` represents the tree of events spawned from a root event,
-//! tracked via correlation IDs. Use it to verify that events propagate
+//! tracked via parent IDs. Use it to verify that events propagate
 //! through the expected actors and trigger the expected child events.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt;
 use std::sync::Arc;
 
 use crate::{ActorId, Event, EventId, Label, Topic};
@@ -13,7 +14,7 @@ use super::{ActorTrace, EventEntry, EventMatcher, EventRecords, EventTrace};
 
 /// A chain of events originating from a single root event.
 ///
-/// The chain captures the tree structure of event propagation via correlation IDs.
+/// The chain captures the tree structure of event propagation via parent IDs.
 /// Use `actors()` to query actor flow or `events()` to query event flow.
 ///
 /// # Example
@@ -49,13 +50,12 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
         let mut chain_ids = HashSet::new();
         let mut children_map: HashMap<EventId, Vec<EventId>> = HashMap::new();
 
-        // Build the tree structure from correlation IDs
-        // First, collect all unique event IDs and their correlation relationships
-        let mut event_correlations: HashMap<EventId, Option<EventId>> = HashMap::new();
+        // Build the tree structure from parent IDs
+        let mut parent_map: HashMap<EventId, Option<EventId>> = HashMap::new();
         for entry in records.iter() {
             let id = entry.id();
-            let correlation = entry.meta().correlation_id();
-            event_correlations.entry(id).or_insert(correlation);
+            let parent = entry.meta().parent_id();
+            parent_map.entry(id).or_insert(parent);
         }
 
         // Find all descendants of root_id using BFS
@@ -63,9 +63,9 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
         chain_ids.insert(root_id);
 
         while let Some(current_id) = queue.pop() {
-            // Find all events that have current_id as their correlation
-            for (id, correlation) in &event_correlations {
-                if *correlation == Some(current_id) && !chain_ids.contains(id) {
+            // Find all events that have current_id as their parent
+            for (id, parent) in &parent_map {
+                if *parent == Some(current_id) && !chain_ids.contains(id) {
                     chain_ids.insert(*id);
                     queue.push(*id);
                     children_map.entry(current_id).or_default().push(*id);
@@ -75,7 +75,7 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
 
         // Sort children by timestamp for deterministic creation-order
         // (EventId is UUID-based and not monotonic)
-        let ts_lookup: HashMap<EventId, u64> = event_correlations
+        let ts_lookup: HashMap<EventId, u64> = parent_map
             .keys()
             .filter_map(|&id| {
                 records
@@ -244,7 +244,7 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
 
     /// Returns all distinct root-to-leaf event paths through the chain.
     ///
-    /// Each path is a sequence of event entries following the correlation tree.
+    /// Each path is a sequence of event entries following the parent-child tree.
     /// One representative entry per event (fan-out to multiple receivers does not
     /// create separate event paths - only distinct child events do).
     pub(super) fn event_paths(&self) -> Vec<Vec<&EventEntry<E, T>>> {
@@ -318,13 +318,6 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
 }
 
 impl<E: Event + Label, T: Topic<E>> EventChain<E, T> {
-    /// Print the event chain structure to stdout for debugging.
-    ///
-    /// Shows a tree view of the chain with event labels and actor flow.
-    pub fn pretty_print(&self) {
-        println!("{}", self.to_string_tree());
-    }
-
     /// Returns a string representation of the chain as a tree.
     pub fn to_string_tree(&self) -> String {
         let mut output = String::new();
@@ -361,7 +354,7 @@ impl<E: Event + Label, T: Topic<E>> EventChain<E, T> {
             let mut seen = HashSet::new();
             let mut receivers: Vec<&str> = entries
                 .iter()
-                .map(|e| e.receiver().name())
+                .map(|e| e.receiver().as_str())
                 .filter(|name| seen.insert(*name))
                 .collect();
             receivers.sort();
@@ -415,8 +408,8 @@ impl<E: Event + Label, T: Topic<E>> EventChain<E, T> {
         let ordered = self.ordered_entries();
 
         for entry in ordered {
-            let sender = entry.sender();
-            let receiver = entry.receiver().name();
+            let sender = entry.sender().as_str();
+            let receiver = entry.receiver().as_str();
             let label = entry.payload().label();
 
             // Sanitize actor names for mermaid (replace spaces, special chars)
@@ -444,6 +437,12 @@ fn sanitize_mermaid_id(s: &str) -> String {
             }
         })
         .collect()
+}
+
+impl<E: Event + Label, T: Topic<E>> fmt::Display for EventChain<E, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string_tree())
+    }
 }
 
 #[cfg(test)]
@@ -479,7 +478,7 @@ mod tests {
     }
 
     fn actor(name: &str) -> ActorId {
-        ActorId::new(Arc::from(name))
+        ActorId::new(name)
     }
 
     /// Helper to build a chain of events for testing.
@@ -497,21 +496,15 @@ mod tests {
         let start_id = start.id();
         let start_entry = EventEntry::new(start, t.clone(), bob.clone());
 
-        // Child: Process from bob (correlated to start) to charlie
-        let process = Arc::new(Envelope::with_correlation(
-            TestEvent::Process,
-            bob.clone(),
-            start_id,
-        ));
+        // Child: Process from bob (child of start) to charlie
+        let process =
+            Arc::new(Envelope::new(TestEvent::Process, bob.clone()).with_parent_id(start_id));
         let process_id = process.id();
         let process_entry = EventEntry::new(process, t.clone(), charlie.clone());
 
-        // Grandchild: Complete from charlie (correlated to process) to alice
-        let complete = Arc::new(Envelope::with_correlation(
-            TestEvent::Complete,
-            charlie,
-            process_id,
-        ));
+        // Grandchild: Complete from charlie (child of process) to alice
+        let complete =
+            Arc::new(Envelope::new(TestEvent::Complete, charlie).with_parent_id(process_id));
         let complete_entry = EventEntry::new(complete, t, alice);
 
         (
@@ -532,16 +525,13 @@ mod tests {
         let start_id = start.id();
         let start_entry = EventEntry::new(start, t.clone(), bob.clone());
 
-        // Branch 1: Process from bob (correlated to start) to charlie
-        let process = Arc::new(Envelope::with_correlation(
-            TestEvent::Process,
-            bob.clone(),
-            start_id,
-        ));
+        // Branch 1: Process from bob (child of start) to charlie
+        let process =
+            Arc::new(Envelope::new(TestEvent::Process, bob.clone()).with_parent_id(start_id));
         let process_entry = EventEntry::new(process, t.clone(), charlie.clone());
 
-        // Branch 2: Branch from bob (correlated to start) to alice
-        let branch = Arc::new(Envelope::with_correlation(TestEvent::Branch, bob, start_id));
+        // Branch 2: Branch from bob (child of start) to alice
+        let branch = Arc::new(Envelope::new(TestEvent::Branch, bob).with_parent_id(start_id));
         let branch_entry = EventEntry::new(branch, t, alice);
 
         (
@@ -564,9 +554,9 @@ mod tests {
         let actors = chain.actors();
         let all = actors.all();
         assert_eq!(all.len(), 3);
-        assert!(all.iter().any(|a| ***a == *alice));
-        assert!(all.iter().any(|a| ***a == *bob));
-        assert!(all.iter().any(|a| ***a == *charlie));
+        assert!(all.iter().any(|a| **a == alice));
+        assert!(all.iter().any(|a| **a == bob));
+        assert!(all.iter().any(|a| **a == charlie));
     }
 
     #[test]
@@ -580,10 +570,10 @@ mod tests {
         assert_eq!(paths.len(), 1);
         // Path: alice -> bob -> charlie -> alice
         assert_eq!(paths[0].len(), 4);
-        assert_eq!(paths[0][0].name(), "alice");
-        assert_eq!(paths[0][1].name(), "bob");
-        assert_eq!(paths[0][2].name(), "charlie");
-        assert_eq!(paths[0][3].name(), "alice"); // receives Complete
+        assert_eq!(paths[0][0].as_str(), "alice");
+        assert_eq!(paths[0][1].as_str(), "bob");
+        assert_eq!(paths[0][2].as_str(), "charlie");
+        assert_eq!(paths[0][3].as_str(), "alice"); // receives Complete
     }
 
     #[test]
@@ -867,7 +857,8 @@ mod tests {
 
     #[test]
     fn empty_chain_handles_gracefully() {
-        let chain: EventChain<TestEvent, DefaultTopic> = EventChain::new(Arc::new(vec![]), 0);
+        let chain: EventChain<TestEvent, DefaultTopic> =
+            EventChain::new(Arc::new(vec![]), EventId::from(0));
 
         assert!(!chain.diverges_after("Anything"));
         assert_eq!(chain.branches_after("Anything"), 0);
@@ -928,7 +919,8 @@ mod tests {
 
     #[test]
     fn to_string_tree_handles_empty_chain() {
-        let chain: EventChain<TestEvent, DefaultTopic> = EventChain::new(Arc::new(vec![]), 0);
+        let chain: EventChain<TestEvent, DefaultTopic> =
+            EventChain::new(Arc::new(vec![]), EventId::from(0));
         let tree = chain.to_string_tree();
 
         assert!(tree.contains("(empty)"));
@@ -974,11 +966,8 @@ mod tests {
         let entry2 = EventEntry::new(start, t.clone(), charlie.clone());
 
         // Child event from bob to charlie
-        let process = Arc::new(Envelope::with_correlation(
-            TestEvent::Process,
-            bob.clone(),
-            start_id,
-        ));
+        let process =
+            Arc::new(Envelope::new(TestEvent::Process, bob.clone()).with_parent_id(start_id));
         let process_entry = EventEntry::new(process, t, charlie);
 
         let records = Arc::new(vec![entry1, entry2, process_entry]);
@@ -995,7 +984,8 @@ mod tests {
 
     #[test]
     fn to_mermaid_handles_empty_chain() {
-        let chain: EventChain<TestEvent, DefaultTopic> = EventChain::new(Arc::new(vec![]), 0);
+        let chain: EventChain<TestEvent, DefaultTopic> =
+            EventChain::new(Arc::new(vec![]), EventId::from(0));
         let mermaid = chain.to_mermaid();
 
         assert_eq!(mermaid, "sequenceDiagram\n");

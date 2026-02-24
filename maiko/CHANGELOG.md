@@ -1,3 +1,36 @@
+# [0.3.0](https://github.com/maiko-rs/maiko/compare/v0.2.6...v0.3.0) (unreleased)
+
+**Breaking changes** - API cleanup guided by the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/).
+
+### Added
+
+- `# Errors` documentation on all public `Result`-returning methods
+- `EventId` newtype struct (was `type EventId = u128`)
+- `EnvelopeBuilder<E>` for flexible envelope construction
+- `ActorId`: `From<&str>`, `From<String>` impls
+
+### Changed
+
+- **Breaking:** `ActorId::new()` takes `&str` instead of `Arc<str>`
+- **Breaking:** `ActorId::name()` renamed to `as_str()`
+- **Breaking:** `Envelope` and `ActorId` no longer implement `Deref`
+- **Breaking:** `Context::send()` accepts `Into<EnvelopeBuilder<E>>` instead of `Into<E>`
+- **Breaking:** `Context::send_child_event()` takes `EventId` instead of `&Meta`
+- **Breaking:** `Meta::parent()` renamed to `parent_id()`
+- **Breaking:** `Envelope::with_parent()` renamed to `with_parent_id()`
+- **Breaking:** `correlation_id` renamed to `parent_id` throughout
+- **Breaking:** `Error::IOError` renamed to `IoError`
+- **Breaking:** `Context::send_envelope()` made private
+- Improved documentation with examples
+
+### Removed
+
+- **Breaking:** `Context::send_with_correlation()` (use `send_child_event()` instead)
+- **Breaking:** `Deref` impls on `Envelope` (use `event()`) and `ActorId` (use `as_str()`)
+- **Breaking:** Deprecated methods removed from `Config`
+
+---
+
 # [0.2.6](https://github.com/maiko-rs/maiko/compare/v0.2.5...v0.2.6) (February 22nd, 2026)
 
 ### Added

@@ -58,7 +58,6 @@ mod tests {
     use crate::DefaultTopic;
     use serde::Serialize;
     use std::io::Read;
-    use std::sync::Arc;
 
     #[derive(Clone, Debug, Serialize)]
     struct TestEvent(String);
@@ -70,9 +69,9 @@ mod tests {
         let recorder = Recorder::new(&path).expect("Failed to create recorder");
 
         let event = TestEvent("hello".to_string());
-        let sender_id = ActorId::new(Arc::from("sender"));
+        let sender_id = ActorId::new("sender");
         let envelope = Envelope::new(event.clone(), sender_id);
-        let receiver_id = ActorId::new(Arc::from("receiver"));
+        let receiver_id = ActorId::new("receiver");
 
         recorder.on_event_dispatched(&envelope, &DefaultTopic, &receiver_id);
 

@@ -130,7 +130,7 @@ impl Actor for Normalizer {
 
         // Send normalized tick as a child event (correlated to parent)
         self.ctx
-            .send_child_event(MarketEvent::MarketTick(tick), envelope.meta())
+            .send_child_event(MarketEvent::MarketTick(tick), envelope.id())
             .await
     }
 }

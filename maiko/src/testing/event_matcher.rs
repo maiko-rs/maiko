@@ -136,8 +136,8 @@ mod tests {
     }
 
     fn make_entry(event: TestEvent) -> EventEntry<TestEvent, DefaultTopic> {
-        let sender = ActorId::new(Arc::from("sender"));
-        let receiver = ActorId::new(Arc::from("receiver"));
+        let sender = ActorId::new("sender");
+        let receiver = ActorId::new("receiver");
         let envelope = Arc::new(Envelope::new(event, sender));
         EventEntry::new(envelope, Arc::new(DefaultTopic), receiver)
     }
@@ -160,7 +160,7 @@ mod tests {
         let matcher = EventMatcher::by_id(id);
         assert!(matcher.matches(&entry));
 
-        let matcher = EventMatcher::by_id(999999);
+        let matcher = EventMatcher::by_id(999999.into());
         assert!(!matcher.matches(&entry));
     }
 

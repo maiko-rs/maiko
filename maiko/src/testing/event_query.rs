@@ -12,7 +12,7 @@ type Filter<E, T> = Rc<dyn Fn(&EventEntry<E, T>) -> bool>;
 /// A composable query builder for filtering and inspecting recorded events.
 ///
 /// `EventQuery` provides a fluent API for filtering events by various criteria
-/// (sender, receiver, topic, correlation, timing) and terminal operations for
+/// (sender, receiver, topic, parent, timing) and terminal operations for
 /// inspection (count, iteration, assertions).
 ///
 /// # Example
@@ -285,10 +285,10 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
         self
     }
 
-    /// Filter to events correlated with the given event ID (children).
-    pub fn correlated_with(mut self, id: impl Into<EventId>) -> Self {
+    /// Filter to child events of the given parent event ID.
+    pub fn children_of(mut self, id: impl Into<EventId>) -> Self {
         let parent_id = id.into();
-        self.add_filter(move |e| e.meta().correlation_id() == Some(parent_id));
+        self.add_filter(move |e| e.meta().parent_id() == Some(parent_id));
         self
     }
 
@@ -339,9 +339,9 @@ mod tests {
     impl TestActors {
         fn new() -> Self {
             Self {
-                alice: ActorId::new(Arc::from("alice")),
-                bob: ActorId::new(Arc::from("bob")),
-                charlie: ActorId::new(Arc::from("charlie")),
+                alice: ActorId::new("alice"),
+                bob: ActorId::new("bob"),
+                charlie: ActorId::new("charlie"),
             }
         }
     }
@@ -390,8 +390,8 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
         let first = query.first().unwrap();
-        assert_eq!(first.sender(), "alice");
-        assert_eq!(first.receiver().name(), "bob");
+        assert_eq!(first.sender().as_str(), "alice");
+        assert_eq!(first.receiver().as_str(), "bob");
         assert!(matches!(first.payload(), TestEvent::Ping));
     }
 
@@ -400,8 +400,8 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
         let last = query.last().unwrap();
-        assert_eq!(last.sender(), "charlie");
-        assert_eq!(last.receiver().name(), "alice");
+        assert_eq!(last.sender().as_str(), "charlie");
+        assert_eq!(last.receiver().as_str(), "alice");
     }
 
     #[test]
@@ -409,7 +409,7 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
         let second = query.nth(1).unwrap();
-        assert_eq!(second.sender(), "bob");
+        assert_eq!(second.sender().as_str(), "bob");
         assert!(matches!(second.payload(), TestEvent::Pong));
     }
 
@@ -433,7 +433,7 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors)).sent_by(&actors.alice);
         assert_eq!(query.count(), 3);
-        assert!(query.all(|e| e.sender() == "alice"));
+        assert!(query.all(|e| e.sender().as_str() == "alice"));
     }
 
     #[test]
@@ -441,7 +441,7 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors)).received_by(&actors.bob);
         assert_eq!(query.count(), 2);
-        assert!(query.all(|e| e.receiver().name() == "bob"));
+        assert!(query.all(|e| e.receiver().as_str() == "bob"));
     }
 
     #[test]
@@ -472,8 +472,8 @@ mod tests {
     #[test]
     fn matching_applies_custom_predicate() {
         let actors = TestActors::new();
-        let query =
-            EventQuery::new(sample_records_with_actors(&actors)).matching(|e| e.sender() == "bob");
+        let query = EventQuery::new(sample_records_with_actors(&actors))
+            .matching(|e| e.sender().as_str() == "bob");
         assert_eq!(query.count(), 1);
     }
 
@@ -489,14 +489,14 @@ mod tests {
     fn all_returns_true_when_all_match() {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors)).sent_by(&actors.alice);
-        assert!(query.all(|e| e.sender() == "alice"));
+        assert!(query.all(|e| e.sender().as_str() == "alice"));
     }
 
     #[test]
     fn all_returns_false_when_any_doesnt_match() {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
-        assert!(!query.all(|e| e.sender() == "alice"));
+        assert!(!query.all(|e| e.sender().as_str() == "alice"));
     }
 
     #[test]
@@ -543,20 +543,17 @@ mod tests {
     }
 
     #[test]
-    fn correlated_with_filters_children() {
+    fn children_of_filters_by_parent_id() {
         let actors = TestActors::new();
         let topic = Arc::new(DefaultTopic);
 
-        // Create a parent event and a child correlated to it
+        // Create a parent event and a child linked to it
         let parent_envelope = Arc::new(Envelope::new(TestEvent::Ping, actors.alice.clone()));
         let parent_id = parent_envelope.id();
         let parent = EventEntry::new(parent_envelope, topic.clone(), actors.bob.clone());
 
-        let child_envelope = Arc::new(Envelope::with_correlation(
-            TestEvent::Pong,
-            actors.bob.clone(),
-            parent_id,
-        ));
+        let child_envelope =
+            Arc::new(Envelope::new(TestEvent::Pong, actors.bob.clone()).with_parent_id(parent_id));
         let child = EventEntry::new(child_envelope, topic.clone(), actors.alice.clone());
 
         let unrelated_envelope =
@@ -564,9 +561,9 @@ mod tests {
         let unrelated = EventEntry::new(unrelated_envelope, topic, actors.alice.clone());
 
         let records = Arc::new(vec![parent, child, unrelated]);
-        let query = EventQuery::new(records).correlated_with(parent_id);
+        let query = EventQuery::new(records).children_of(parent_id);
         assert_eq!(query.count(), 1);
-        assert!(query.first().unwrap().sender() == "bob");
+        assert!(query.first().unwrap().sender().as_str() == "bob");
     }
 
     #[test]
@@ -734,7 +731,7 @@ mod tests {
         assert!(query.has_sender(&actors.alice));
         assert!(query.has_sender(&actors.bob));
 
-        let unknown = ActorId::new(Arc::from("unknown"));
+        let unknown = ActorId::new("unknown");
         assert!(!query.has_sender(&unknown));
     }
 
@@ -745,7 +742,7 @@ mod tests {
         assert!(query.has_receiver(&actors.bob));
         assert!(query.has_receiver(&actors.alice));
 
-        let unknown = ActorId::new(Arc::from("unknown"));
+        let unknown = ActorId::new("unknown");
         assert!(!query.has_receiver(&unknown));
     }
 
@@ -753,7 +750,7 @@ mod tests {
     fn has_returns_true_for_matching_entry() {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
-        assert!(query.has(|e| e.sender() == "charlie"));
-        assert!(!query.has(|e| e.sender() == "unknown"));
+        assert!(query.has(|e| e.sender().as_str() == "charlie"));
+        assert!(!query.has(|e| e.sender().as_str() == "unknown"));
     }
 }
