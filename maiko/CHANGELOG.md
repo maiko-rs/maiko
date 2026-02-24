@@ -4,6 +4,7 @@
 
 ### Added
 
+- `# Errors` documentation on all public `Result`-returning methods
 - `EventId` newtype struct (was `type EventId = u128`)
 - `EnvelopeBuilder<E>` for flexible envelope construction
 - `ActorId`: `From<&str>`, `From<String>` impls
@@ -20,6 +21,7 @@
 - **Breaking:** `correlation_id` renamed to `parent_id` throughout
 - **Breaking:** `Error::IOError` renamed to `IoError`
 - **Breaking:** `Context::send_envelope()` made private
+- Improved documentation with examples
 
 ### Removed
 

@@ -66,7 +66,7 @@ pub trait Topic<E: Event>: Hash + PartialEq + Eq + Clone + Send + Sync + 'static
 ///
 /// # Examples
 ///
-/// ```rust, ignore
+/// ```rust,ignore
 /// use maiko::{Supervisor, DefaultTopic};
 /// let mut sup = Supervisor::<MyEvent>::default();
 /// sup.add_actor("actor", |ctx| MyActor { ctx }, &[DefaultTopic])?;

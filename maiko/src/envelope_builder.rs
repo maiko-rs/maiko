@@ -23,6 +23,8 @@ pub struct EnvelopeBuilder<E> {
 impl<E> EnvelopeBuilder<E> {
     /// Consume the builder and produce an [`Envelope`].
     ///
+    /// # Errors
+    ///
     /// Returns [`Error::EnvelopeBuildError`] if neither a pre-built envelope
     /// nor an event + actor ID were provided.
     pub fn build(self) -> Result<Envelope<E>> {

@@ -111,6 +111,11 @@ impl<'a, E: Event, T: Topic<E>, A: Actor<Event = E>> ActorBuilder<'a, E, T, A> {
     }
 
     /// Register the actor with the supervisor and return its [`ActorId`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::DuplicateActorName`](crate::Error::DuplicateActorName)
+    /// if an actor with the same name is already registered.
     pub fn build(self) -> Result<ActorId> {
         self.supervisor.register_actor(
             self.ctx,

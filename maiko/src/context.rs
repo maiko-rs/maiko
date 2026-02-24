@@ -43,6 +43,11 @@ impl<E> Context<E> {
     /// Send an event to the broker. Accepts any type that converts into `E`.
     /// The envelope will carry this actor's name.
     /// This awaits channel capacity (backpressure) to avoid silent drops.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`](crate::Error::SendError) if the broker
+    /// channel is closed.
     pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result<()> {
         let envelope = builder
             .into()
@@ -52,6 +57,11 @@ impl<E> Context<E> {
     }
 
     /// Emit a child event linked to the given parent event ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`](crate::Error::SendError) if the broker
+    /// channel is closed.
     pub async fn send_child_event<T: Into<EnvelopeBuilder<E>>>(
         &self,
         builder: T,

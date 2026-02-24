@@ -108,6 +108,12 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// * `factory` - Closure that receives a Context and returns the actor
     /// * `topics` - Slice of topics the actor subscribes to
     ///
+    /// # Errors
+    ///
+    /// Returns [`Error::DuplicateActorName`] if an actor with the same name
+    /// is already registered. Returns [`Error::BrokerAlreadyStarted`] if
+    /// called after [`start()`](Self::start).
+    ///
     /// # Example
     ///
     /// ```ignore
@@ -222,6 +228,10 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     }
 
     /// Start the broker loop in a background task. This returns immediately.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible, but returns `Result` for forward compatibility.
     pub async fn start(&mut self) -> Result<()> {
         let broker = self.broker.clone();
         self.tasks
@@ -232,6 +242,11 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
     /// Waits until at least one of the actor tasks completes then
     /// triggers a shutdown if not already requested.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ActorJoinError`] if an actor task panics.
+    /// Propagates any error returned by [`stop()`](Self::stop).
     pub async fn join(&mut self) -> Result<()> {
         while let Some(res) = self.tasks.join_next().await {
             if !self.cancel_token.is_cancelled() {
@@ -245,12 +260,20 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
     /// Convenience method to start and then await completion of all tasks.
     /// Blocks until shutdown.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error from [`start()`](Self::start) or [`join()`](Self::join).
     pub async fn run(&mut self) -> Result<()> {
         self.start().await?;
         self.join().await
     }
 
     /// Emit an event into the broker from the supervisor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`] if the broker channel is closed.
     pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result<()> {
         let envelope = builder
             .into()
@@ -267,6 +290,10 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// 1. Waits for the broker to receive all pending events (up to 10 ms)
     /// 2. Stops the broker and waits for it to drain actor queues
     /// 3. Cancels all actors and waits for tasks to complete
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ActorJoinError`] if an actor task panics during shutdown.
     pub async fn stop(&mut self) -> Result<()> {
         use tokio::time::*;
         let start = Instant::now();
