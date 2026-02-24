@@ -1,7 +1,5 @@
 use std::{fmt, hash, time::SystemTime};
 
-use uuid::Uuid;
-
 use crate::{ActorId, EventId};
 
 /// Metadata attached to every [`Envelope`](crate::Envelope).
@@ -9,33 +7,33 @@ use crate::{ActorId, EventId};
 /// - `id`: unique event identifier (UUID v4, not monotonic).
 /// - `timestamp`: creation time in nanoseconds since Unix epoch (`u64`). Monotonic within a process.
 /// - `actor_id`: the actor that emitted the event.
-/// - `correlation_id`: optional link to a parent event. Set automatically by
+/// - `parent_id`: optional link to a parent event. Set automatically by
 ///   [`Context::send_child_event`](crate::Context::send_child_event). The test harness
-///   uses correlation to build event chains (`EventChain`, `ActorTrace`, `EventTrace`).
+///   uses parent IDs to build event chains (`EventChain`, `ActorTrace`, `EventTrace`).
 #[derive(Debug, Clone, PartialEq, Eq, hash::Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Meta {
     id: EventId,
     timestamp: u64,
     actor_id: ActorId,
-    correlation_id: Option<EventId>,
+    parent_id: Option<EventId>,
 }
 
 impl Meta {
-    /// Construct metadata for a given actor name and optional correlation id.
+    /// Construct metadata for a given actor ID and optional parent event ID.
     ///
     /// # Panics
     ///
     /// Panics if the system clock is set before the Unix epoch.
-    pub fn new(actor_id: ActorId, correlation_id: Option<EventId>) -> Self {
+    pub fn new(actor_id: ActorId, parent_id: Option<EventId>) -> Self {
         Self {
-            id: Uuid::new_v4().as_u128(),
+            id: EventId::new(),
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .expect("SystemTime before Unix epoch")
                 .as_nanos() as u64,
             actor_id,
-            correlation_id,
+            parent_id,
         }
     }
 
@@ -51,17 +49,20 @@ impl Meta {
 
     /// Name of actor that sent the event.
     pub fn actor_name(&self) -> &str {
-        self.actor_id.name()
+        self.actor_id.as_str()
     }
 
     pub fn actor_id(&self) -> &ActorId {
         &self.actor_id
     }
 
-    /// Optional value of correlation data.
-    /// It might by a parent event id, but it's up to the user to define its meaning.
-    pub fn correlation_id(&self) -> Option<EventId> {
-        self.correlation_id
+    /// Optional parent event ID for causality tracking.
+    pub fn parent_id(&self) -> Option<EventId> {
+        self.parent_id
+    }
+
+    pub(crate) fn set_parent(&mut self, parent_id: EventId) {
+        self.parent_id = Some(parent_id);
     }
 }
 
@@ -74,8 +75,8 @@ impl fmt::Display for Meta {
             self.timestamp(),
             self.actor_name(),
         )?;
-        if let Some(correlation_id) = self.correlation_id() {
-            write!(f, ", correlation_id: {}", correlation_id)?;
+        if let Some(parent_id) = self.parent_id() {
+            write!(f, ", parent_id: {}", parent_id)?;
         }
         write!(f, "}}")?;
         Ok(())

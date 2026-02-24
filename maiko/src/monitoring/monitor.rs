@@ -16,11 +16,11 @@ use crate::{ActorId, DefaultTopic, Envelope, Event, OverflowPolicy, StepAction, 
 ///
 /// impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
 ///     fn on_event_dispatched(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
-///         println!("[dispatch] {} -> {}", envelope.meta().actor_name(), receiver.name());
+///         println!("[dispatch] {} -> {}", envelope.meta().actor_name(), receiver.as_str());
 ///     }
 ///
 ///     fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
-///         println!("[handled] {} by {}", envelope.id(), receiver.name());
+///         println!("[handled] {} by {}", envelope.id(), receiver.as_str());
 ///     }
 /// }
 /// ```

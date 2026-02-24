@@ -9,4 +9,16 @@
 /// Use `#[derive(Event)]` instead of implementing this trait manually.
 /// Consider also deriving [`Label`](crate::Label) for human-readable
 /// variant names in diagnostics and test output.
+///
+/// # Example
+///
+/// ```rust
+/// use maiko::Event;
+///
+/// #[derive(Clone, Debug, Event)]
+/// enum ChatEvent {
+///     Message(String),
+///     Join(String),
+/// }
+/// ```
 pub trait Event: Send + Sync + Clone + 'static {}

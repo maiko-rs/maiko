@@ -27,7 +27,7 @@
 //! - Change Data policy to Drop and watch checksums diverge
 //! - Change Command policy to Drop and watch the system hang (Done is lost)
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 #[cfg(feature = "monitoring")]
 use maiko::monitors::Tracer;
@@ -100,7 +100,7 @@ impl Actor for Producer {
         }
 
         let mut buf: [u8; 1024] = [0; 1024];
-        getrandom::fill(&mut buf).map_err(|e| maiko::Error::External(e.to_string().into()))?;
+        getrandom::fill(&mut buf).map_err(|e| maiko::Error::External(Arc::new(e)))?;
         let data = Box::new(buf);
 
         self.checksum = self

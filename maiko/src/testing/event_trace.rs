@@ -43,7 +43,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
 
     /// Returns true if any event path exactly matches all matchers (same length and order).
     ///
-    /// Each path follows the correlation tree from root to leaf. For branching
+    /// Each path follows the parent-child tree from root to leaf. For branching
     /// chains, returns true if any single branch matches.
     pub fn exact<M>(&self, matchers: &[M]) -> bool
     where
@@ -66,7 +66,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
 
     /// Returns true if events matching the matchers appear consecutively in any event path.
     ///
-    /// Each path follows the correlation tree from root to leaf. For branching
+    /// Each path follows the parent-child tree from root to leaf. For branching
     /// chains, returns true if any single branch contains the contiguous segment.
     pub fn segment<M>(&self, matchers: &[M]) -> bool
     where
@@ -85,7 +85,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
 
     /// Returns true if events matching the matchers appear in order in any event path (gaps allowed).
     ///
-    /// Each path follows the correlation tree from root to leaf. For branching
+    /// Each path follows the parent-child tree from root to leaf. For branching
     /// chains, returns true if any single branch passes through the matchers.
     pub fn passes_through<M>(&self, matchers: &[M]) -> bool
     where

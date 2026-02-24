@@ -15,7 +15,7 @@ The test harness enables:
 - **Condition-based settling** - wait until specific events appear
 - **Spies** - inspect events from different perspectives (event, actor, topic)
 - **Queries** - filter and search recorded events
-- **Event chains** - trace event propagation through correlation IDs
+- **Event chains** - trace event propagation through parent IDs
 
 ## Basic Usage
 
@@ -131,7 +131,7 @@ spy.delivery_ratio(&[&a, &b, &c])   // fraction of listed actors that received i
 spy.sender()                     // name of sending actor
 spy.receivers()                  // list of receiving actors
 spy.receiver_count()            // number of receivers
-spy.children()                   // query for correlated child events
+spy.children()                   // query for child events
 ```
 
 ### ActorSpy
@@ -190,7 +190,7 @@ query.sent_by(&actor)           // events sent by actor
 query.received_by(&actor)       // events received by actor
 query.with_topic(topic)         // events on specific topic
 query.with_id(event_id)         // events with specific ID
-query.correlated_with(id)       // events correlated to parent ID
+query.children_of(id)           // child events of a parent event
 query.with_label("MyVariant")   // events with specific label (requires Label trait)
 query.matching_event(|e| ...)   // custom event predicate
 query.matching(|entry| ...)     // custom entry predicate (access to metadata)
@@ -247,7 +247,7 @@ event_id      // EventId → id matcher
 
 ## Event Chains
 
-`EventChain` traces causally related events through correlation IDs, building a tree from a root event to all its descendants.
+`EventChain` traces causally related events through parent IDs, building a tree from a root event to all its descendants.
 
 ```rust
 let chain = test.chain(root_event_id);
@@ -276,7 +276,7 @@ chain.actors().path_count();
 
 ### Event Tracing
 
-Query the event sequence along correlation paths:
+Query the event sequence along parent-child paths:
 
 ```rust
 // Check if a specific event label appears anywhere

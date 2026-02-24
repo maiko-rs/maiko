@@ -47,7 +47,7 @@ pub trait Actor: Send + 'static {
     ///
     /// Receives the full [`Envelope`] containing both the event payload and metadata.
     /// Use `envelope.event()` for pattern matching, or access `envelope.meta()` for
-    /// sender information and correlation IDs.
+    /// sender information and parent event IDs.
     ///
     /// # Example
     ///
@@ -64,9 +64,11 @@ pub trait Actor: Send + 'static {
     /// }
     /// ```
     ///
-    /// Called for every event routed to this actor. Return `Ok(())` when
-    /// processing succeeds, or an error to signal failure. Use `Context::send`
-    /// to emit follow-up events as needed.
+    /// # Errors
+    ///
+    /// Return `Ok(())` when processing succeeds. Return an error to signal
+    /// failure — this triggers [`on_error`](Self::on_error), which decides
+    /// whether the actor stops or continues.
     fn handle_event(
         &mut self,
         envelope: &Envelope<Self::Event>,
@@ -113,31 +115,32 @@ pub trait Actor: Send + 'static {
     /// }
     /// ```
     ///
+    /// # Errors
+    ///
+    /// Returning an error triggers [`on_error`](Self::on_error).
+    ///
     /// # Default Behavior
     ///
     /// Returns `StepAction::Never`, making the actor purely event-driven.
     fn step(&mut self) -> impl Future<Output = Result<StepAction>> + Send {
-        async { Ok(StepAction::Never) }
+        async { Ok(StepAction::default()) }
     }
 
     /// Lifecycle hook called once before the event loop starts.
     ///
-    /// Equivalent to:
+    /// # Errors
     ///
-    /// ```ignore
-    /// async fn on_start(&mut self) -> Result<()>;
-    /// ```
+    /// Returning an error prevents the actor from starting and propagates
+    /// the error to the supervisor.
     fn on_start(&mut self) -> impl Future<Output = Result<()>> + Send {
         async { Ok(()) }
     }
 
     /// Lifecycle hook called once after the event loop stops.
     ///
-    /// Equivalent to:
+    /// # Errors
     ///
-    /// ```ignore
-    /// async fn on_shutdown(&mut self) -> Result<()>;
-    /// ```
+    /// Returning an error propagates it to the supervisor.
     fn on_shutdown(&mut self) -> impl Future<Output = Result<()>> + Send {
         async { Ok(()) }
     }

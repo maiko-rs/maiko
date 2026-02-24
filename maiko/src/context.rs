@@ -8,30 +8,27 @@ use std::{
 
 use tokio::sync::mpsc::Sender;
 
-use crate::{ActorId, Envelope, EventId, Meta, Result};
+use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
 
 /// Runtime-provided context for an actor to interact with the system.
 ///
 /// Use it to:
-/// - `send(event)`: emit events into the broker tagged with this actor's name
-/// - `stop()`: request graceful shutdown of this actor (and trigger global cancel)
-/// - `name()`: retrieve the actor's name for logging/identity
+/// - `send(event)`: emit events into the broker tagged with this actor's ID
+/// - `send_child_event(event, parent_id)`: emit an event linked to a parent event
+/// - `stop()`: request graceful shutdown of this actor
+/// - `actor_id()`: retrieve the actor's identity
 /// - `is_alive()`: check whether the actor loop should continue running
 ///
-/// Correlation:
-/// - `send_with_correlation(event, id)`: emit an event linked to a specific correlation id.
-/// - `send_child_event(event, meta)`: convenience to set correlation id to the parent `meta.id()`.
-///
-/// See also: [`Envelope`], [`Meta`], [`crate::Supervisor`].
+/// See also: [`Envelope`], [`crate::Meta`], [`crate::Supervisor`].
 #[derive(Clone)]
 pub struct Context<E> {
-    pub(crate) actor_id: ActorId,
-    pub(crate) sender: Sender<Arc<Envelope<E>>>,
-    pub(crate) alive: Arc<AtomicBool>,
+    actor_id: ActorId,
+    sender: Sender<Arc<Envelope<E>>>,
+    alive: Arc<AtomicBool>,
 }
 
 impl<E> Context<E> {
-    pub fn new(
+    pub(crate) fn new(
         actor_id: ActorId,
         sender: Sender<Arc<Envelope<E>>>,
         alive: Arc<AtomicBool>,
@@ -46,37 +43,40 @@ impl<E> Context<E> {
     /// Send an event to the broker. Accepts any type that converts into `E`.
     /// The envelope will carry this actor's name.
     /// This awaits channel capacity (backpressure) to avoid silent drops.
-    pub async fn send<T: Into<E>>(&self, event: T) -> Result<()> {
-        let envelope = Envelope::new(event.into(), self.actor_id.clone());
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`](crate::Error::SendError) if the broker
+    /// channel is closed.
+    pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result<()> {
+        let envelope = builder
+            .into()
+            .with_actor_id(self.actor_id.clone())
+            .build()?;
         self.send_envelope(envelope).await
     }
 
-    /// Send an event with an explicit correlation id.
-    pub async fn send_with_correlation<T, ID>(&self, event: T, correlation_id: ID) -> Result<()>
-    where
-        T: Into<E>,
-        ID: Into<EventId>,
-    {
-        self.send_envelope(Envelope::with_correlation(
-            event.into(),
-            self.actor_id.clone(),
-            correlation_id.into(),
-        ))
-        .await
-    }
-
-    /// Emit a child event correlated to the given parent `Meta`.
-    pub async fn send_child_event<T: Into<E>>(&self, event: T, meta: &Meta) -> Result<()> {
-        self.send_envelope(Envelope::with_correlation(
-            event.into(),
-            self.actor_id.clone(),
-            meta.id(),
-        ))
-        .await
+    /// Emit a child event linked to the given parent event ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`](crate::Error::SendError) if the broker
+    /// channel is closed.
+    pub async fn send_child_event<T: Into<EnvelopeBuilder<E>>>(
+        &self,
+        builder: T,
+        parent_id: EventId,
+    ) -> Result<()> {
+        let envelope = builder
+            .into()
+            .with_actor_id(self.actor_id.clone())
+            .build()?
+            .with_parent_id(parent_id);
+        self.send_envelope(envelope).await
     }
 
     #[inline]
-    pub async fn send_envelope<T: Into<Envelope<E>>>(&self, envelope: T) -> Result<()> {
+    async fn send_envelope<T: Into<Envelope<E>>>(&self, envelope: T) -> Result<()> {
         self.sender.send(Arc::new(envelope.into())).await?;
         Ok(())
     }
@@ -95,7 +95,7 @@ impl<E> Context<E> {
     /// The actor's name as registered with the supervisor.
     #[inline]
     pub fn actor_name(&self) -> &str {
-        self.actor_id.name()
+        self.actor_id.as_str()
     }
 
     /// Whether the actor is considered alive by the runtime.

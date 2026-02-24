@@ -137,9 +137,9 @@ mod tests {
     impl TestActors {
         fn new() -> Self {
             Self {
-                alice: ActorId::new(Arc::from("alice")),
-                bob: ActorId::new(Arc::from("bob")),
-                charlie: ActorId::new(Arc::from("charlie")),
+                alice: ActorId::new("alice"),
+                bob: ActorId::new("bob"),
+                charlie: ActorId::new("charlie"),
             }
         }
     }
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn last_received_returns_none_when_no_inbound() {
         let actors = TestActors::new();
-        let unknown = ActorId::new(Arc::from("unknown"));
+        let unknown = ActorId::new("unknown");
         let spy = ActorSpy::new(sample_records_with_actors(&actors), unknown);
         assert!(spy.last_received().is_none());
     }
@@ -201,8 +201,8 @@ mod tests {
         let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
         let senders = spy.received_from();
         assert_eq!(senders.len(), 2);
-        assert!(senders.iter().any(|s| &**s == "bob"));
-        assert!(senders.iter().any(|s| &**s == "charlie"));
+        assert!(senders.iter().any(|s| s.as_str() == "bob"));
+        assert!(senders.iter().any(|s| s.as_str() == "charlie"));
     }
 
     #[test]
@@ -231,9 +231,9 @@ mod tests {
 
     #[test]
     fn events_sent_deduplicates_same_event_to_multiple_receivers() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         // Same event delivered to multiple actors
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice.clone()));
         let topic = Arc::new(DefaultTopic);
@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn last_sent_returns_none_when_no_outbound() {
         let actors = TestActors::new();
-        let unknown = ActorId::new(Arc::from("unknown"));
+        let unknown = ActorId::new("unknown");
         let spy = ActorSpy::new(sample_records_with_actors(&actors), unknown);
         assert!(spy.last_sent().is_none());
     }
@@ -269,8 +269,8 @@ mod tests {
         let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
         let receivers = spy.sent_to();
         assert_eq!(receivers.len(), 2);
-        assert!(receivers.iter().any(|r| &**r == "bob"));
-        assert!(receivers.iter().any(|r| &**r == "charlie"));
+        assert!(receivers.iter().any(|r| r.as_str() == "bob"));
+        assert!(receivers.iter().any(|r| r.as_str() == "charlie"));
     }
 
     #[test]
@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn actor_with_no_activity_has_zero_counts() {
         let actors = TestActors::new();
-        let unknown = ActorId::new(Arc::from("unknown"));
+        let unknown = ActorId::new("unknown");
         let spy = ActorSpy::new(sample_records_with_actors(&actors), unknown);
         assert_eq!(spy.events_received(), 0);
         assert_eq!(spy.events_sent(), 0);

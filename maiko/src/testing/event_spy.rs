@@ -9,7 +9,7 @@ use crate::{
 ///
 /// Provides methods to inspect:
 /// - Whether and where the event was delivered
-/// - Child events correlated to this event
+/// - Child events linked to this event via parent ID
 pub struct EventSpy<E: Event, T: Topic<E>> {
     id: EventId,
     records: EventRecords<E, T>,
@@ -42,11 +42,8 @@ impl<E: Event, T: Topic<E>> EventSpy<E, T> {
     }
 
     /// Returns the name of the actor that sent this event.
-    pub fn sender(&self) -> ActorId {
-        self.query
-            .first()
-            .map(|e| e.meta().actor_id().clone())
-            .expect("EventSpy must have at least one delivery record")
+    pub fn sender(&self) -> Option<ActorId> {
+        self.query.first().map(|e| e.meta().actor_id().clone())
     }
 
     /// Returns the number of actors that received this event.
@@ -65,11 +62,9 @@ impl<E: Event, T: Topic<E>> EventSpy<E, T> {
             .collect()
     }
 
-    /// Returns a query for child events (events correlated to this one).
-    ///
-    /// Child events are those whose `correlation_id` matches this event's `id`.
+    /// Returns a query for child events (events whose parent ID matches this event's ID).
     pub fn children(&self) -> EventQuery<E, T> {
-        EventQuery::new(self.records.clone()).correlated_with(self.id)
+        EventQuery::new(self.records.clone()).children_of(self.id)
     }
 
     /// Returns true if the event was NOT delivered to the specified actor.
@@ -112,8 +107,8 @@ mod tests {
 
     #[test]
     fn was_delivered_returns_true_when_event_exists() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let entry = EventEntry::new(envelope, topic(), bob);
@@ -125,8 +120,8 @@ mod tests {
 
     #[test]
     fn was_delivered_returns_false_when_event_not_found() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let entry = EventEntry::new(envelope, topic(), bob);
         let records = Arc::new(vec![entry]);
@@ -137,8 +132,8 @@ mod tests {
 
     #[test]
     fn was_delivered_to_returns_true_for_matching_receiver() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let entry = EventEntry::new(envelope, topic(), bob.clone());
@@ -150,9 +145,9 @@ mod tests {
 
     #[test]
     fn was_delivered_to_returns_false_for_non_matching_receiver() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let entry = EventEntry::new(envelope, topic(), bob);
@@ -164,22 +159,22 @@ mod tests {
 
     #[test]
     fn sender_returns_sender_name() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let entry = EventEntry::new(envelope, topic(), bob);
         let records = Arc::new(vec![entry]);
 
         let spy = EventSpy::new(records, id);
-        assert_eq!(&*spy.sender(), "alice");
+        assert_eq!(spy.sender().expect("sender should exist").as_str(), "alice");
     }
 
     #[test]
     fn receivers_returns_all_unique_receivers() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let t = topic();
@@ -192,15 +187,15 @@ mod tests {
         let spy = EventSpy::new(records, id);
         let receivers = spy.receivers();
         assert_eq!(receivers.len(), 2);
-        assert!(receivers.iter().any(|r| &**r == "bob"));
-        assert!(receivers.iter().any(|r| &**r == "charlie"));
+        assert!(receivers.iter().any(|r| r.as_str() == "bob"));
+        assert!(receivers.iter().any(|r| r.as_str() == "charlie"));
     }
 
     #[test]
     fn receiver_count_returns_unique_receiver_count() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let t = topic();
@@ -213,10 +208,10 @@ mod tests {
     }
 
     #[test]
-    fn children_returns_correlated_events() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+    fn children_returns_child_events() {
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         let t = topic();
 
         // Parent event
@@ -224,8 +219,8 @@ mod tests {
         let parent_id = parent.id();
         let parent_entry = EventEntry::new(parent, t.clone(), bob.clone());
 
-        // Child event correlated to parent
-        let child = Arc::new(Envelope::with_correlation(TestEvent(2), bob, parent_id));
+        // Child event linked to parent
+        let child = Arc::new(Envelope::new(TestEvent(2), bob).with_parent_id(parent_id));
         let child_entry = EventEntry::new(child, t.clone(), alice.clone());
 
         // Unrelated event
@@ -242,9 +237,9 @@ mod tests {
 
     #[test]
     fn not_delivered_to_returns_true_for_non_receiver() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let entry = EventEntry::new(envelope, topic(), bob);
@@ -256,9 +251,9 @@ mod tests {
 
     #[test]
     fn was_delivered_to_all_returns_true_when_all_received() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let t = topic();
@@ -272,9 +267,9 @@ mod tests {
 
     #[test]
     fn was_delivered_to_all_returns_false_when_some_missing() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let entry = EventEntry::new(envelope, topic(), bob.clone());
@@ -286,10 +281,10 @@ mod tests {
 
     #[test]
     fn delivery_ratio_returns_correct_ratio() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
-        let dave = ActorId::new(Arc::from("dave"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
+        let dave = ActorId::new("dave");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let t = topic();
@@ -305,8 +300,8 @@ mod tests {
 
     #[test]
     fn delivery_ratio_returns_one_for_empty_slice() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let id = envelope.id();
         let entry = EventEntry::new(envelope, topic(), bob);

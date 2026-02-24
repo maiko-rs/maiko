@@ -123,7 +123,7 @@ mod tests {
     impl Event for TestEvent {}
 
     fn make_id(name: &str) -> ActorId {
-        ActorId::new(Arc::from(name))
+        ActorId::new(name)
     }
 
     #[test]

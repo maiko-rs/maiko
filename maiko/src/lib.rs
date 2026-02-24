@@ -51,7 +51,7 @@
 //! | [`Topic`] | Routes events to interested actors |
 //! | [`Supervisor`] | Manages actor lifecycles and runtime |
 //! | [`Context`] | Allows actors to send events and interact with runtime |
-//! | [`Envelope`] | Wraps events with metadata (sender, correlation ID) |
+//! | [`Envelope`] | Wraps events with metadata (sender, timestamp, parent ID) |
 //! | [`ActorId`] | Unique identifier for a registered actor |
 //! | [`OverflowPolicy`] | Controls behavior when a subscriber's channel is full |
 //!
@@ -128,8 +128,10 @@ mod actor_id;
 mod config;
 mod context;
 mod envelope;
+mod envelope_builder;
 mod error;
 mod event;
+mod event_id;
 mod label;
 mod meta;
 mod overflow_policy;
@@ -159,8 +161,10 @@ pub use actor_id::ActorId;
 pub use config::Config;
 pub use context::Context;
 pub use envelope::Envelope;
+pub use envelope_builder::EnvelopeBuilder;
 pub use error::Error;
 pub use event::Event;
+pub use event_id::EventId;
 pub use label::Label;
 pub use meta::Meta;
 pub use overflow_policy::OverflowPolicy;
@@ -175,8 +179,3 @@ pub use maiko_macros::{Event, Label, SelfRouting};
 
 /// Convenience alias for `Result<T, maiko::Error>`.
 pub type Result<T = ()> = std::result::Result<T, Error>;
-
-/// Unique event identifier. Currently a UUID v4 stored as `u128`.
-///
-/// Not monotonic - use [`Meta::timestamp()`] for creation-order sorting.
-pub type EventId = u128;

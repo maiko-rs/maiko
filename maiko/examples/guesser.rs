@@ -28,8 +28,10 @@
 //!
 //! The Game actor stops the entire system using `ctx.stop()` after completing its task.
 
-use maiko::*;
+use std::sync::Arc;
 use std::time::Duration;
+
+use maiko::*;
 
 /// Player identifier for distinguishing events from different players.
 ///
@@ -102,7 +104,8 @@ impl Actor for Guesser {
 
     /// Generate a random guess at regular intervals.
     async fn step(&mut self) -> maiko::Result<StepAction> {
-        let number = (getrandom::u32().unwrap() % 10) as u8;
+        let rand = getrandom::u32().map_err(|e| Error::External(Arc::new(e)))?;
+        let number = (rand % 10) as u8;
 
         // Emit a guess event with our player ID
         self.ctx
@@ -177,7 +180,7 @@ impl Actor for Game {
                             player1: n1,
                             player2: n2,
                         },
-                        envelope.meta(),
+                        envelope.id(),
                     )
                     .await?;
             }

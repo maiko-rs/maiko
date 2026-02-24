@@ -36,12 +36,12 @@ struct EventLogger;
 impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
     fn on_event_dispatched(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
         println!("[dispatched] {} -> {} (topic: {:?})",
-            envelope.meta().actor_name(), receiver.name(), topic);
+            envelope.meta().actor_name(), receiver.as_str(), topic);
     }
 
     fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
         println!("[handled] {} processed by {}",
-            envelope.id(), receiver.name());
+            envelope.id(), receiver.as_str());
     }
 }
 

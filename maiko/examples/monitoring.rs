@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use maiko::{monitoring::Monitor, *};
 
 #[allow(unused)]
@@ -16,7 +14,7 @@ impl Actor for Greeter {
 
     async fn handle_event(&mut self, _envelope: &Envelope<Self::Event>) -> Result<()> {
         // Intentionally return an error to demonstrate on_error monitoring
-        Err(maiko::Error::External(Arc::from("Simulated error")))
+        Ok(())
     }
 
     fn on_error(&self, _error: Error) -> Result<()> {

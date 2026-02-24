@@ -1,4 +1,4 @@
-use std::{hash::Hash, ops::Deref, sync::Arc};
+use std::{hash::Hash, sync::Arc};
 
 /// Unique identifier for a registered actor.
 ///
@@ -33,16 +33,17 @@ use std::{hash::Hash, ops::Deref, sync::Arc};
 /// use `ActorId::new()` to create identifiers for those sources.
 #[derive(Debug, Clone, Ord, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
 pub struct ActorId(Arc<str>);
 
 impl ActorId {
-    pub fn new(id: Arc<str>) -> Self {
-        Self(id)
+    pub fn new(id: &str) -> Self {
+        Self(Arc::from(id))
     }
 
-    /// Returns the actor's name as registered with the supervisor.
+    /// Returns the string representation of this actor ID.
     #[inline]
-    pub fn name(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         &self.0
     }
 }
@@ -67,9 +68,14 @@ impl Hash for ActorId {
     }
 }
 
-impl Deref for ActorId {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl From<&str> for ActorId {
+    fn from(s: &str) -> Self {
+        Self::new(s)
+    }
+}
+
+impl From<String> for ActorId {
+    fn from(s: String) -> Self {
+        Self(Arc::from(s))
     }
 }

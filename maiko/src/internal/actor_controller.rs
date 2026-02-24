@@ -151,7 +151,7 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
             self.monitoring.send(MonitoringEvent::EventDelivered(
                 event.clone(),
                 topic.clone(),
-                self.ctx.actor_id.clone(),
+                self.ctx.actor_id().clone(),
             ));
         }
     }
@@ -162,7 +162,7 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
             self.monitoring.send(MonitoringEvent::EventHandled(
                 event.clone(),
                 topic.clone(),
-                self.ctx.actor_id.clone(),
+                self.ctx.actor_id().clone(),
             ));
         }
     }
@@ -172,7 +172,7 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
         if self.monitoring.is_active() {
             self.monitoring.send(MonitoringEvent::Error(
                 error.to_string().into(),
-                self.ctx.actor_id.clone(),
+                self.ctx.actor_id().clone(),
             ));
         }
     }
@@ -181,7 +181,7 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
     fn notify_exit(&self) {
         if self.monitoring.is_active() {
             self.monitoring
-                .send(MonitoringEvent::ActorStopped(self.ctx.actor_id.clone()));
+                .send(MonitoringEvent::ActorStopped(self.ctx.actor_id().clone()));
         }
     }
 }
