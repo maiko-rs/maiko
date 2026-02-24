@@ -36,10 +36,13 @@ use crate::monitoring::MonitorRegistry;
 /// # Runtime Control
 ///
 /// - [`start()`](Self::start) spawns the broker loop and returns immediately (non-blocking).
-/// - [`join()`](Self::join) awaits all actor tasks to finish; typically used after `start()`.
-/// - [`run()`](Self::run) combines `start()` and `join()`, blocking until shutdown.
-/// - [`stop()`](Self::stop) graceful shutdown; lets actors consume active events
 /// - [`send(event)`](Self::send) emits events into the broker.
+/// - [`run()`](Self::run) combines `start()` and `join()` — consumes the supervisor.
+/// - [`join()`](Self::join) awaits all actor tasks to finish — consumes the supervisor.
+/// - [`stop()`](Self::stop) graceful shutdown — consumes the supervisor.
+///
+/// The terminal methods (`run`, `join`, `stop`) take ownership of the supervisor,
+/// preventing use-after-shutdown at compile time.
 ///
 /// See also: [`Actor`], [`Context`], [`Topic`].
 pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
@@ -247,7 +250,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// Returns [`Error::ActorJoinError`] if an actor task panics.
     /// Propagates any error returned by [`stop()`](Self::stop).
-    pub async fn join(&mut self) -> Result<()> {
+    pub async fn join(mut self) -> Result<()> {
         while let Some(res) = self.tasks.join_next().await {
             if !self.cancel_token.is_cancelled() {
                 self.stop().await?;
@@ -264,7 +267,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Propagates any error from [`start()`](Self::start) or [`join()`](Self::join).
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
         self.start().await?;
         self.join().await
     }
@@ -294,7 +297,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Returns [`Error::ActorJoinError`] if an actor task panics during shutdown.
-    pub async fn stop(&mut self) -> Result<()> {
+    pub async fn stop(mut self) -> Result<()> {
         use tokio::time::*;
         let start = Instant::now();
         let timeout = Duration::from_millis(10);

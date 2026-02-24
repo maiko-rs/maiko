@@ -215,7 +215,6 @@ async fn run() -> maiko::Result {
     sup.send(Event::Start(1000)).await?;
     sup.join().await?;
     println!("Elapsed: {:?}", start.elapsed());
-    sup.stop().await?;
     Ok(())
 }
 
