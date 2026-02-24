@@ -186,7 +186,10 @@ mod tests {
     fn events_returns_filterable_query() {
         let actors = TestActors::new();
         let spy = TopicSpy::new(sample_records_with_actors(&actors), TestTopic::Data);
-        let alice_events = spy.events().matching(|e| e.sender() == "alice").count();
+        let alice_events = spy
+            .events()
+            .matching(|e| e.sender().as_str() == "alice")
+            .count();
         assert_eq!(alice_events, 2);
     }
 

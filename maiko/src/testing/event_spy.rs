@@ -42,11 +42,8 @@ impl<E: Event, T: Topic<E>> EventSpy<E, T> {
     }
 
     /// Returns the name of the actor that sent this event.
-    pub fn sender(&self) -> ActorId {
-        self.query
-            .first()
-            .map(|e| e.meta().actor_id().clone())
-            .expect("EventSpy must have at least one delivery record")
+    pub fn sender(&self) -> Option<ActorId> {
+        self.query.first().map(|e| e.meta().actor_id().clone())
     }
 
     /// Returns the number of actors that received this event.
@@ -170,7 +167,7 @@ mod tests {
         let records = Arc::new(vec![entry]);
 
         let spy = EventSpy::new(records, id);
-        assert_eq!(spy.sender().as_str(), "alice");
+        assert_eq!(spy.sender().expect("sender should exist").as_str(), "alice");
     }
 
     #[test]

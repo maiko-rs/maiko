@@ -5,6 +5,7 @@
 //! through the expected actors and trigger the expected child events.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt;
 use std::sync::Arc;
 
 use crate::{ActorId, Event, EventId, Label, Topic};
@@ -317,13 +318,6 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
 }
 
 impl<E: Event + Label, T: Topic<E>> EventChain<E, T> {
-    /// Print the event chain structure to stdout for debugging.
-    ///
-    /// Shows a tree view of the chain with event labels and actor flow.
-    pub fn pretty_print(&self) {
-        println!("{}", self.to_string_tree());
-    }
-
     /// Returns a string representation of the chain as a tree.
     pub fn to_string_tree(&self) -> String {
         let mut output = String::new();
@@ -414,7 +408,7 @@ impl<E: Event + Label, T: Topic<E>> EventChain<E, T> {
         let ordered = self.ordered_entries();
 
         for entry in ordered {
-            let sender = entry.sender();
+            let sender = entry.sender().as_str();
             let receiver = entry.receiver().as_str();
             let label = entry.payload().label();
 
@@ -443,6 +437,12 @@ fn sanitize_mermaid_id(s: &str) -> String {
             }
         })
         .collect()
+}
+
+impl<E: Event + Label, T: Topic<E>> fmt::Display for EventChain<E, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string_tree())
+    }
 }
 
 #[cfg(test)]

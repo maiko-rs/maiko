@@ -255,7 +255,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         let envelope = builder
             .into()
             .with_actor_id(self.supervisor_id.clone())
-            .build();
+            .build()?;
         self.sender.send(envelope.into()).await?;
         Ok(())
     }

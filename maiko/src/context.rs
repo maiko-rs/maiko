@@ -44,7 +44,10 @@ impl<E> Context<E> {
     /// The envelope will carry this actor's name.
     /// This awaits channel capacity (backpressure) to avoid silent drops.
     pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result<()> {
-        let envelope = builder.into().with_actor_id(self.actor_id.clone()).build();
+        let envelope = builder
+            .into()
+            .with_actor_id(self.actor_id.clone())
+            .build()?;
         self.send_envelope(envelope).await
     }
 
@@ -57,7 +60,7 @@ impl<E> Context<E> {
         let envelope = builder
             .into()
             .with_actor_id(self.actor_id.clone())
-            .build()
+            .build()?
             .with_parent_id(parent_id);
         self.send_envelope(envelope).await
     }

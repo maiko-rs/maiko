@@ -54,8 +54,8 @@ impl<E: Event, T: Topic<E>> EventEntry<E, T> {
 
     /// Returns the name of the actor that sent this event.
     #[inline]
-    pub fn sender(&self) -> &str {
-        self.meta().actor_name()
+    pub fn sender(&self) -> &ActorId {
+        self.meta().actor_id()
     }
 
     /// Returns the name of the actor that received this event.
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn sender_returns_sender_name() {
         let (entry, _, _) = make_entry();
-        assert_eq!(entry.sender(), "sender-actor");
+        assert_eq!(entry.sender().as_str(), "sender-actor");
     }
 
     #[test]

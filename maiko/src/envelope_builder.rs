@@ -1,4 +1,4 @@
-use crate::{ActorId, Envelope, Event, EventId};
+use crate::{ActorId, Envelope, Error, Event, EventId, Result};
 
 /// Builder for constructing [`Envelope`]s.
 ///
@@ -23,11 +23,10 @@ pub struct EnvelopeBuilder<E> {
 impl<E> EnvelopeBuilder<E> {
     /// Consume the builder and produce an [`Envelope`].
     ///
-    /// # Panics
-    ///
-    /// Panics if neither an event nor a pre-built envelope was provided.
-    pub fn build(self) -> Envelope<E> {
-        if let Some(envelope) = self.envelope {
+    /// Returns [`Error::EnvelopeBuildError`] if neither a pre-built envelope
+    /// nor an event + actor ID were provided.
+    pub fn build(self) -> Result<Envelope<E>> {
+        let envelope = if let Some(envelope) = self.envelope {
             envelope
         } else if let Some(event) = self.event
             && let Some(actor_id) = self.actor_id
@@ -39,8 +38,9 @@ impl<E> EnvelopeBuilder<E> {
                 e
             }
         } else {
-            panic!("EnvelopeBuilder requires either an envelope or an event");
-        }
+            return Err(Error::EnvelopeBuildError);
+        };
+        Ok(envelope)
     }
 
     /// Set the sender's actor ID. Called internally by [`Context`](crate::Context).

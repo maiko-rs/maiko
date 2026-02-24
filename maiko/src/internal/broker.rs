@@ -44,7 +44,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
 
     pub(crate) fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) -> Result<()> {
         if self.subscribers.contains(&subscriber) {
-            return Err(Error::SubscriberAlreadyExists(subscriber.actor_id.clone()));
+            return Err(Error::DuplicateActorName(subscriber.actor_id.clone()));
         }
 
         #[cfg(feature = "monitoring")]

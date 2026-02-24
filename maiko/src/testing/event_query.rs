@@ -390,7 +390,7 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
         let first = query.first().unwrap();
-        assert_eq!(first.sender(), "alice");
+        assert_eq!(first.sender().as_str(), "alice");
         assert_eq!(first.receiver().as_str(), "bob");
         assert!(matches!(first.payload(), TestEvent::Ping));
     }
@@ -400,7 +400,7 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
         let last = query.last().unwrap();
-        assert_eq!(last.sender(), "charlie");
+        assert_eq!(last.sender().as_str(), "charlie");
         assert_eq!(last.receiver().as_str(), "alice");
     }
 
@@ -409,7 +409,7 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
         let second = query.nth(1).unwrap();
-        assert_eq!(second.sender(), "bob");
+        assert_eq!(second.sender().as_str(), "bob");
         assert!(matches!(second.payload(), TestEvent::Pong));
     }
 
@@ -433,7 +433,7 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors)).sent_by(&actors.alice);
         assert_eq!(query.count(), 3);
-        assert!(query.all(|e| e.sender() == "alice"));
+        assert!(query.all(|e| e.sender().as_str() == "alice"));
     }
 
     #[test]
@@ -472,8 +472,8 @@ mod tests {
     #[test]
     fn matching_applies_custom_predicate() {
         let actors = TestActors::new();
-        let query =
-            EventQuery::new(sample_records_with_actors(&actors)).matching(|e| e.sender() == "bob");
+        let query = EventQuery::new(sample_records_with_actors(&actors))
+            .matching(|e| e.sender().as_str() == "bob");
         assert_eq!(query.count(), 1);
     }
 
@@ -489,14 +489,14 @@ mod tests {
     fn all_returns_true_when_all_match() {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors)).sent_by(&actors.alice);
-        assert!(query.all(|e| e.sender() == "alice"));
+        assert!(query.all(|e| e.sender().as_str() == "alice"));
     }
 
     #[test]
     fn all_returns_false_when_any_doesnt_match() {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
-        assert!(!query.all(|e| e.sender() == "alice"));
+        assert!(!query.all(|e| e.sender().as_str() == "alice"));
     }
 
     #[test]
@@ -563,7 +563,7 @@ mod tests {
         let records = Arc::new(vec![parent, child, unrelated]);
         let query = EventQuery::new(records).children_of(parent_id);
         assert_eq!(query.count(), 1);
-        assert!(query.first().unwrap().sender() == "bob");
+        assert!(query.first().unwrap().sender().as_str() == "bob");
     }
 
     #[test]
@@ -750,7 +750,7 @@ mod tests {
     fn has_returns_true_for_matching_entry() {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors));
-        assert!(query.has(|e| e.sender() == "charlie"));
-        assert!(!query.has(|e| e.sender() == "unknown"));
+        assert!(query.has(|e| e.sender().as_str() == "charlie"));
+        assert!(!query.has(|e| e.sender().as_str() == "unknown"));
     }
 }

@@ -10,13 +10,13 @@ use crate::{ActorId, Envelope};
 /// `Result<T, maiko::Error>`). Errors from lower layers (Tokio channels,
 /// IO, task joins) are mapped into variants of this enum so callers only
 /// need to handle one error type.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
-    #[error("Couldn't send the message: {0}")]
+    #[error("Channel closed: {0}")]
     SendError(String),
 
-    #[error("Actor task join error: {0}")]
-    ActorJoinError(#[from] tokio::task::JoinError),
+    #[error("Actor task failed: {0}")]
+    ActorJoinError(String),
 
     #[error("Broker has already started.")]
     BrokerAlreadyStarted,
@@ -24,19 +24,42 @@ pub enum Error {
     #[error("The message channel has reached its capacity.")]
     ChannelIsFull,
 
-    #[error("Subscriber with name '{0}' already exists.")]
-    SubscriberAlreadyExists(ActorId),
+    #[error("Actor '{0}' already exists.")]
+    DuplicateActorName(ActorId),
 
-    #[error("Error external to Maiko occurred: {0}")]
+    #[error("External error: {0}")]
     External(#[source] Arc<dyn std::error::Error + Send + Sync>),
 
-    #[error("IO Error: {0}")]
-    IoError(#[from] std::io::Error),
+    #[error("IO error: {0}")]
+    IoError(String),
+
+    #[error("Not enough data to build an envelope")]
+    EnvelopeBuildError,
 
     #[cfg(feature = "test-harness")]
     #[error("settle_on condition not met within {0:?}: {1} events recorded")]
     SettleTimeout(std::time::Duration, usize),
 }
+
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::SendError(a), Self::SendError(b)) => a == b,
+            (Self::ActorJoinError(a), Self::ActorJoinError(b)) => a == b,
+            (Self::BrokerAlreadyStarted, Self::BrokerAlreadyStarted) => true,
+            (Self::ChannelIsFull, Self::ChannelIsFull) => true,
+            (Self::DuplicateActorName(a), Self::DuplicateActorName(b)) => a == b,
+            (Self::External(a), Self::External(b)) => Arc::ptr_eq(a, b),
+            (Self::IoError(a), Self::IoError(b)) => a == b,
+            (Self::EnvelopeBuildError, Self::EnvelopeBuildError) => true,
+            #[cfg(feature = "test-harness")]
+            (Self::SettleTimeout(a1, a2), Self::SettleTimeout(b1, b2)) => a1 == b1 && a2 == b2,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Error {}
 
 impl<E> From<SendError<Arc<Envelope<E>>>> for Error {
     fn from(e: SendError<Arc<Envelope<E>>>) -> Self {
@@ -50,5 +73,17 @@ impl<E> From<TrySendError<Arc<Envelope<E>>>> for Error {
             TrySendError::Full(_) => Error::ChannelIsFull,
             TrySendError::Closed(_) => Error::SendError(e.to_string()),
         }
+    }
+}
+
+impl From<tokio::task::JoinError> for Error {
+    fn from(e: tokio::task::JoinError) -> Self {
+        Error::ActorJoinError(e.to_string())
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::IoError(e.to_string())
     }
 }
