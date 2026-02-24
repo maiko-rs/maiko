@@ -1,7 +1,7 @@
 use std::{fmt, hash, time::Duration};
 
 /// Action returned by an actor `step` to influence scheduling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, hash::Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, hash::Hash, Default)]
 pub enum StepAction {
     /// Run `step` again immediately.
     Continue,
@@ -12,6 +12,7 @@ pub enum StepAction {
     /// Sleep for the given duration before running `step` again.
     Backoff(Duration),
     /// Disable `step` permanently. This is the default.
+    #[default]
     Never,
 }
 

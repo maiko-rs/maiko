@@ -54,7 +54,7 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
         let mut event_correlations: HashMap<EventId, Option<EventId>> = HashMap::new();
         for entry in records.iter() {
             let id = entry.id();
-            let correlation = entry.meta().correlation_id();
+            let correlation = entry.meta().parent_id();
             event_correlations.entry(id).or_insert(correlation);
         }
 
@@ -361,7 +361,7 @@ impl<E: Event + Label, T: Topic<E>> EventChain<E, T> {
             let mut seen = HashSet::new();
             let mut receivers: Vec<&str> = entries
                 .iter()
-                .map(|e| e.receiver().name())
+                .map(|e| e.receiver().as_str())
                 .filter(|name| seen.insert(*name))
                 .collect();
             receivers.sort();
@@ -416,7 +416,7 @@ impl<E: Event + Label, T: Topic<E>> EventChain<E, T> {
 
         for entry in ordered {
             let sender = entry.sender();
-            let receiver = entry.receiver().name();
+            let receiver = entry.receiver().as_str();
             let label = entry.payload().label();
 
             // Sanitize actor names for mermaid (replace spaces, special chars)
@@ -479,7 +479,7 @@ mod tests {
     }
 
     fn actor(name: &str) -> ActorId {
-        ActorId::new(Arc::from(name))
+        ActorId::new(name)
     }
 
     /// Helper to build a chain of events for testing.
@@ -498,20 +498,14 @@ mod tests {
         let start_entry = EventEntry::new(start, t.clone(), bob.clone());
 
         // Child: Process from bob (correlated to start) to charlie
-        let process = Arc::new(Envelope::with_correlation(
-            TestEvent::Process,
-            bob.clone(),
-            start_id,
-        ));
+        let process =
+            Arc::new(Envelope::new(TestEvent::Process, bob.clone()).with_parent_id(start_id));
         let process_id = process.id();
         let process_entry = EventEntry::new(process, t.clone(), charlie.clone());
 
         // Grandchild: Complete from charlie (correlated to process) to alice
-        let complete = Arc::new(Envelope::with_correlation(
-            TestEvent::Complete,
-            charlie,
-            process_id,
-        ));
+        let complete =
+            Arc::new(Envelope::new(TestEvent::Complete, charlie).with_parent_id(process_id));
         let complete_entry = EventEntry::new(complete, t, alice);
 
         (
@@ -533,15 +527,12 @@ mod tests {
         let start_entry = EventEntry::new(start, t.clone(), bob.clone());
 
         // Branch 1: Process from bob (correlated to start) to charlie
-        let process = Arc::new(Envelope::with_correlation(
-            TestEvent::Process,
-            bob.clone(),
-            start_id,
-        ));
+        let process =
+            Arc::new(Envelope::new(TestEvent::Process, bob.clone()).with_parent_id(start_id));
         let process_entry = EventEntry::new(process, t.clone(), charlie.clone());
 
         // Branch 2: Branch from bob (correlated to start) to alice
-        let branch = Arc::new(Envelope::with_correlation(TestEvent::Branch, bob, start_id));
+        let branch = Arc::new(Envelope::new(TestEvent::Branch, bob).with_parent_id(start_id));
         let branch_entry = EventEntry::new(branch, t, alice);
 
         (
@@ -580,10 +571,10 @@ mod tests {
         assert_eq!(paths.len(), 1);
         // Path: alice -> bob -> charlie -> alice
         assert_eq!(paths[0].len(), 4);
-        assert_eq!(paths[0][0].name(), "alice");
-        assert_eq!(paths[0][1].name(), "bob");
-        assert_eq!(paths[0][2].name(), "charlie");
-        assert_eq!(paths[0][3].name(), "alice"); // receives Complete
+        assert_eq!(paths[0][0].as_str(), "alice");
+        assert_eq!(paths[0][1].as_str(), "bob");
+        assert_eq!(paths[0][2].as_str(), "charlie");
+        assert_eq!(paths[0][3].as_str(), "alice"); // receives Complete
     }
 
     #[test]
@@ -867,7 +858,8 @@ mod tests {
 
     #[test]
     fn empty_chain_handles_gracefully() {
-        let chain: EventChain<TestEvent, DefaultTopic> = EventChain::new(Arc::new(vec![]), 0);
+        let chain: EventChain<TestEvent, DefaultTopic> =
+            EventChain::new(Arc::new(vec![]), EventId::from(0));
 
         assert!(!chain.diverges_after("Anything"));
         assert_eq!(chain.branches_after("Anything"), 0);
@@ -928,7 +920,8 @@ mod tests {
 
     #[test]
     fn to_string_tree_handles_empty_chain() {
-        let chain: EventChain<TestEvent, DefaultTopic> = EventChain::new(Arc::new(vec![]), 0);
+        let chain: EventChain<TestEvent, DefaultTopic> =
+            EventChain::new(Arc::new(vec![]), EventId::from(0));
         let tree = chain.to_string_tree();
 
         assert!(tree.contains("(empty)"));
@@ -974,11 +967,8 @@ mod tests {
         let entry2 = EventEntry::new(start, t.clone(), charlie.clone());
 
         // Child event from bob to charlie
-        let process = Arc::new(Envelope::with_correlation(
-            TestEvent::Process,
-            bob.clone(),
-            start_id,
-        ));
+        let process =
+            Arc::new(Envelope::new(TestEvent::Process, bob.clone()).with_parent_id(start_id));
         let process_entry = EventEntry::new(process, t, charlie);
 
         let records = Arc::new(vec![entry1, entry2, process_entry]);
@@ -995,7 +985,8 @@ mod tests {
 
     #[test]
     fn to_mermaid_handles_empty_chain() {
-        let chain: EventChain<TestEvent, DefaultTopic> = EventChain::new(Arc::new(vec![]), 0);
+        let chain: EventChain<TestEvent, DefaultTopic> =
+            EventChain::new(Arc::new(vec![]), EventId::from(0));
         let mermaid = chain.to_mermaid();
 
         assert_eq!(mermaid, "sequenceDiagram\n");

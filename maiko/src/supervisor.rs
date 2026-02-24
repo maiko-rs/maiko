@@ -10,8 +10,8 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope, Error,
-    Event, Label, Result, Subscribe, Topic,
+    Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope,
+    EnvelopeBuilder, Error, Event, Label, Result, Subscribe, Topic,
     internal::{ActorController, Broker, Subscriber, Subscription},
 };
 
@@ -71,7 +71,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             monitoring
         };
 
-        let supervisor_id = ActorId::new(Arc::from("supervisor"));
+        let supervisor_id = ActorId::new("supervisor");
 
         let broker_cancel_token = Arc::new(CancellationToken::new());
         let mut broker = Broker::new(
@@ -218,11 +218,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         name: &str,
         sender: Sender<Arc<Envelope<E>>>,
     ) -> Context<E> {
-        Context::<E> {
-            actor_id: ActorId::new(Arc::<str>::from(name)),
-            sender,
-            alive: Arc::new(AtomicBool::new(true)),
-        }
+        Context::<E>::new(ActorId::new(name), sender, Arc::new(AtomicBool::new(true)))
     }
 
     /// Start the broker loop in a background task. This returns immediately.
@@ -255,10 +251,12 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     }
 
     /// Emit an event into the broker from the supervisor.
-    pub async fn send(&self, event: E) -> Result<()> {
-        self.sender
-            .send(Envelope::new(event, self.supervisor_id.clone()).into())
-            .await?;
+    pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result<()> {
+        let envelope = builder
+            .into()
+            .with_actor_id(self.supervisor_id.clone())
+            .build();
+        self.sender.send(envelope.into()).await?;
         Ok(())
     }
 
@@ -342,7 +340,7 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
 
         // For each registration, add edges from topics to actors
         for (actor_id, subscription) in &self.registrations {
-            let actor_name = actor_id.name();
+            let actor_name = actor_id.as_str();
             match subscription {
                 Subscription::All => {
                     for topic_name in &all_topics {
@@ -452,7 +450,7 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
             subs.sort();
 
             exports.push(ActorSubscriptionExport {
-                actor_id: actor_id.name().to_string(),
+                actor_id: actor_id.to_string(),
                 subscriptions: subs,
             });
         }

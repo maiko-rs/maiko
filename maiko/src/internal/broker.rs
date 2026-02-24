@@ -104,7 +104,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
                     );
                     match policy {
                         OverflowPolicy::Fail => {
-                            tracing::error!(actor=%subscriber.actor_id.name(), event_id=%e.id(), "closing channel due to OverflowPolicy Fail");
+                            tracing::error!(actor=%subscriber.actor_id.as_str(), event_id=%e.id(), "closing channel due to OverflowPolicy Fail");
                             to_be_closed
                                 .get_or_insert(Vec::new())
                                 .push(subscriber.actor_id.clone());
@@ -121,7 +121,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
                 }
                 Err(TrySendError::Closed(_)) => {
                     // Channel is closed, will be cleaned up in the next maintenance cycle
-                    tracing::warn!(actor=%subscriber.actor_id.name(), "subscriber channel closed, will be removed in cleanup");
+                    tracing::warn!(actor=%subscriber.actor_id.as_str(), "subscriber channel closed, will be removed in cleanup");
                 }
             }
         }
@@ -286,7 +286,7 @@ mod tests {
             monitoring,
         );
         broker.add_sender(rx);
-        let actor_id = ActorId::new(Arc::from("subscriber1"));
+        let actor_id = ActorId::new("subscriber1");
         let subscriber = super::Subscriber::new(
             actor_id.clone(),
             Subscription::Topics(HashSet::from([TestTopic::A])),

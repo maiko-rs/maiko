@@ -36,13 +36,13 @@ use std::{hash::Hash, sync::Arc};
 pub struct ActorId(Arc<str>);
 
 impl ActorId {
-    pub fn new(id: Arc<str>) -> Self {
-        Self(id)
+    pub fn new(id: &str) -> Self {
+        Self(Arc::from(id))
     }
 
-    /// Returns the actor's name as registered with the supervisor.
+    /// Returns the string representation of this actor ID.
     #[inline]
-    pub fn name(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         &self.0
     }
 }
@@ -64,5 +64,17 @@ impl std::fmt::Display for ActorId {
 impl Hash for ActorId {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
+    }
+}
+
+impl From<&str> for ActorId {
+    fn from(s: &str) -> Self {
+        Self::new(s)
+    }
+}
+
+impl From<String> for ActorId {
+    fn from(s: String) -> Self {
+        Self(Arc::from(s))
     }
 }

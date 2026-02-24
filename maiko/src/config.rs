@@ -13,7 +13,7 @@
 ///     .with_default_actor_channel_capacity(256)   // Larger actor mailboxes
 ///     .with_default_max_events_per_tick(20);       // Process more events per cycle
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Config {
     /// Size of the broker's input channel buffer.
@@ -24,7 +24,7 @@ pub struct Config {
     /// Default mailbox channel capacity for newly registered actors.
     /// Individual actors can override this via [`ActorBuilder::channel_capacity`](crate::ActorBuilder::channel_capacity).
     /// Default: 128
-    pub default_actor_channel_capacity: usize,
+    default_actor_channel_capacity: usize,
 
     /// Maximum number of events an actor will process in a single tick cycle
     /// before yielding control back to the scheduler.

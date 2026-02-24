@@ -26,7 +26,7 @@ where
         tracing::trace!(
             event_id = %envelope.id(),
             sender = %envelope.meta().actor_name(),
-            receiver = %receiver.name(),
+            receiver = %receiver.as_str(),
             topic = ?topic,
             "event dispatched"
         );
@@ -35,7 +35,7 @@ where
     fn on_event_delivered(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
         tracing::trace!(
             event_id = %envelope.id(),
-            receiver = %receiver.name(),
+            receiver = %receiver.as_str(),
             topic = ?topic,
             "event delivered"
         );
@@ -45,7 +45,7 @@ where
         tracing::debug!(
             event_id = %envelope.id(),
             sender = %envelope.meta().actor_name(),
-            receiver = %receiver.name(),
+            receiver = %receiver.as_str(),
             topic = ?topic,
             event = ?envelope.event(),
             "event handled"
@@ -54,7 +54,7 @@ where
 
     fn on_error(&self, err: &str, actor_id: &ActorId) {
         tracing::warn!(
-            actor = %actor_id.name(),
+            actor = %actor_id.as_str(),
             error = %err,
             "actor error"
         );
@@ -62,14 +62,14 @@ where
 
     fn on_actor_stop(&self, actor_id: &ActorId) {
         tracing::info!(
-            actor = %actor_id.name(),
+            actor = %actor_id.as_str(),
             "actor stopped"
         );
     }
 
     fn on_actor_registered(&self, actor_id: &ActorId) {
         tracing::trace!(
-            actor = %actor_id.name(),
+            actor = %actor_id.as_str(),
             "actor registered"
         )
     }
@@ -83,7 +83,7 @@ where
     ) {
         tracing::trace!(
             event_id = %envelope.id(),
-            receiver = %receiver.name(),
+            receiver = %receiver.as_str(),
             topic = ?topic,
             policy = %policy,
             "overflow"

@@ -288,7 +288,7 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     /// Filter to events correlated with the given event ID (children).
     pub fn correlated_with(mut self, id: impl Into<EventId>) -> Self {
         let parent_id = id.into();
-        self.add_filter(move |e| e.meta().correlation_id() == Some(parent_id));
+        self.add_filter(move |e| e.meta().parent_id() == Some(parent_id));
         self
     }
 
@@ -339,9 +339,9 @@ mod tests {
     impl TestActors {
         fn new() -> Self {
             Self {
-                alice: ActorId::new(Arc::from("alice")),
-                bob: ActorId::new(Arc::from("bob")),
-                charlie: ActorId::new(Arc::from("charlie")),
+                alice: ActorId::new("alice"),
+                bob: ActorId::new("bob"),
+                charlie: ActorId::new("charlie"),
             }
         }
     }
@@ -391,7 +391,7 @@ mod tests {
         let query = EventQuery::new(sample_records_with_actors(&actors));
         let first = query.first().unwrap();
         assert_eq!(first.sender(), "alice");
-        assert_eq!(first.receiver().name(), "bob");
+        assert_eq!(first.receiver().as_str(), "bob");
         assert!(matches!(first.payload(), TestEvent::Ping));
     }
 
@@ -401,7 +401,7 @@ mod tests {
         let query = EventQuery::new(sample_records_with_actors(&actors));
         let last = query.last().unwrap();
         assert_eq!(last.sender(), "charlie");
-        assert_eq!(last.receiver().name(), "alice");
+        assert_eq!(last.receiver().as_str(), "alice");
     }
 
     #[test]
@@ -441,7 +441,7 @@ mod tests {
         let actors = TestActors::new();
         let query = EventQuery::new(sample_records_with_actors(&actors)).received_by(&actors.bob);
         assert_eq!(query.count(), 2);
-        assert!(query.all(|e| e.receiver().name() == "bob"));
+        assert!(query.all(|e| e.receiver().as_str() == "bob"));
     }
 
     #[test]
@@ -552,11 +552,8 @@ mod tests {
         let parent_id = parent_envelope.id();
         let parent = EventEntry::new(parent_envelope, topic.clone(), actors.bob.clone());
 
-        let child_envelope = Arc::new(Envelope::with_correlation(
-            TestEvent::Pong,
-            actors.bob.clone(),
-            parent_id,
-        ));
+        let child_envelope =
+            Arc::new(Envelope::new(TestEvent::Pong, actors.bob.clone()).with_parent_id(parent_id));
         let child = EventEntry::new(child_envelope, topic.clone(), actors.alice.clone());
 
         let unrelated_envelope =
@@ -734,7 +731,7 @@ mod tests {
         assert!(query.has_sender(&actors.alice));
         assert!(query.has_sender(&actors.bob));
 
-        let unknown = ActorId::new(Arc::from("unknown"));
+        let unknown = ActorId::new("unknown");
         assert!(!query.has_sender(&unknown));
     }
 
@@ -745,7 +742,7 @@ mod tests {
         assert!(query.has_receiver(&actors.bob));
         assert!(query.has_receiver(&actors.alice));
 
-        let unknown = ActorId::new(Arc::from("unknown"));
+        let unknown = ActorId::new("unknown");
         assert!(!query.has_receiver(&unknown));
     }
 

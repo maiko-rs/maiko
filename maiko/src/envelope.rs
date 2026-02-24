@@ -6,7 +6,7 @@ use crate::{ActorId, Event, EventId, Meta};
 ///
 /// Every event in the system travels as `Arc<Envelope<E>>` - from producer
 /// through the broker to each subscriber's mailbox. It pairs the user-defined
-/// event payload with [`Meta`] (sender, timestamp, correlation ID).
+/// event payload with [`Meta`] (sender, timestamp, parent ID).
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
@@ -30,14 +30,14 @@ impl<E> Envelope<E> {
         }
     }
 
-    /// Create a new envelope with an explicit correlation id.
+    /// Set the parent event ID for correlation tracking.
     ///
-    /// Use this to link child events to a parent or to group related flows.
-    pub fn with_correlation(event: E, actor_id: ActorId, correlation_id: EventId) -> Self {
-        Self {
-            meta: Meta::new(actor_id, Some(correlation_id)),
-            event,
-        }
+    /// Prefer [`Context::send_child_event`](crate::Context::send_child_event) which
+    /// sets this automatically. Use `with_parent_id` directly only when constructing
+    /// envelopes outside the normal actor context (e.g., in test setup or bridges).
+    pub fn with_parent_id(mut self, parent_id: EventId) -> Self {
+        self.meta.set_parent(parent_id);
+        self
     }
 
     /// Returns a reference to the event payload.
@@ -116,8 +116,6 @@ impl<E: fmt::Display> fmt::Display for Envelope<E> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
 
     #[derive(Clone, Debug)]
@@ -127,7 +125,7 @@ mod tests {
 
     #[test]
     fn envelope_debug() {
-        let actor = ActorId::new(Arc::from("test-actor"));
+        let actor = ActorId::new("test-actor");
         let envelope = Envelope::new(TestEvent(42), actor);
         let debug_str = format!("{:?}", envelope);
 

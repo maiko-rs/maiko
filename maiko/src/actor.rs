@@ -117,7 +117,7 @@ pub trait Actor: Send + 'static {
     ///
     /// Returns `StepAction::Never`, making the actor purely event-driven.
     fn step(&mut self) -> impl Future<Output = Result<StepAction>> + Send {
-        async { Ok(StepAction::Never) }
+        async { Ok(StepAction::default()) }
     }
 
     /// Lifecycle hook called once before the event loop starts.

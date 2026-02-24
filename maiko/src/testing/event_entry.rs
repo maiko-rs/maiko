@@ -87,8 +87,8 @@ mod tests {
     impl Event for TestEvent {}
 
     fn make_entry() -> (EventEntry<TestEvent, DefaultTopic>, ActorId, ActorId) {
-        let sender_id = ActorId::new(Arc::from("sender-actor"));
-        let receiver_id = ActorId::new(Arc::from("receiver-actor"));
+        let sender_id = ActorId::new("sender-actor");
+        let receiver_id = ActorId::new("receiver-actor");
         let envelope = Arc::new(Envelope::new(TestEvent(42), sender_id.clone()));
         let entry = EventEntry::new(envelope, Arc::new(DefaultTopic), receiver_id.clone());
         (entry, sender_id, receiver_id)
@@ -98,7 +98,7 @@ mod tests {
     fn id_returns_envelope_id() {
         let (entry, _, _) = make_entry();
         // ID should be non-zero (generated)
-        assert_ne!(entry.id(), 0);
+        assert_ne!(entry.id().value(), 0);
     }
 
     #[test]
@@ -128,13 +128,13 @@ mod tests {
     #[test]
     fn receiver_returns_receiver_name() {
         let (entry, _, _) = make_entry();
-        assert_eq!(entry.receiver().name(), "receiver-actor");
+        assert_eq!(entry.receiver().as_str(), "receiver-actor");
     }
 
     #[test]
     fn receiver_actor_eq_matches_correctly() {
         let (entry, _, receiver_id) = make_entry();
-        let not_matching = ActorId::new(Arc::from("other-actor"));
+        let not_matching = ActorId::new("other-actor");
 
         assert!(entry.receiver_actor_eq(&receiver_id));
         assert!(!entry.receiver_actor_eq(&not_matching));
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn sender_actor_eq_matches_correctly() {
         let (entry, sender_id, _) = make_entry();
-        let not_matching = ActorId::new(Arc::from("other-actor"));
+        let not_matching = ActorId::new("other-actor");
 
         assert!(entry.sender_actor_eq(&sender_id));
         assert!(!entry.sender_actor_eq(&not_matching));

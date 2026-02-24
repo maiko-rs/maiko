@@ -177,7 +177,7 @@ impl Actor for Game {
                             player1: n1,
                             player2: n2,
                         },
-                        envelope.meta(),
+                        envelope.id(),
                     )
                     .await?;
             }

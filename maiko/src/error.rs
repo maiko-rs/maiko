@@ -12,9 +12,6 @@ use crate::{ActorId, Envelope};
 /// need to handle one error type.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Actor's context must be set by this point")]
-    ContextNotSet,
-
     #[error("Couldn't send the message: {0}")]
     SendError(String),
 
@@ -31,7 +28,7 @@ pub enum Error {
     SubscriberAlreadyExists(ActorId),
 
     #[error("Error external to Maiko occurred: {0}")]
-    External(Arc<str>),
+    External(#[source] Arc<dyn std::error::Error + Send + Sync>),
 
     #[error("IO Error: {0}")]
     IoError(#[from] std::io::Error),

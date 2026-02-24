@@ -173,7 +173,7 @@ struct EventLogger;
 
 impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
     fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
-        println!("[handled] {} by {}", envelope.id(), receiver.name());
+        println!("[handled] {} by {}", envelope.id(), receiver.as_str());
     }
 }
 

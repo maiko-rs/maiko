@@ -191,7 +191,7 @@ ctx.send_child_event(ResponseEvent::Ok, envelope.meta()).await?;
 ctx.stop();
 
 // Get actor's name
-let name = ctx.name();
+let name = ctx.actor_name();
 ```
 
 ## Supervisor
@@ -293,7 +293,7 @@ let producer: ActorId = sup.add_actor("producer", |ctx| Producer::new(ctx), &[De
 // Access sender from event metadata
 async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
     let sender: &ActorId = envelope.meta().actor_id();
-    println!("Event from: {}", sender.name());
+    println!("Event from: {}", sender.as_str());
     Ok(())
 }
 

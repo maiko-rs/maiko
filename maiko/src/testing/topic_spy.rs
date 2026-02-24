@@ -98,9 +98,9 @@ mod tests {
     impl TestActors {
         fn new() -> Self {
             Self {
-                alice: ActorId::new(Arc::from("alice")),
-                bob: ActorId::new(Arc::from("bob")),
-                charlie: ActorId::new(Arc::from("charlie")),
+                alice: ActorId::new("alice"),
+                bob: ActorId::new("bob"),
+                charlie: ActorId::new("charlie"),
             }
         }
     }
@@ -150,9 +150,9 @@ mod tests {
 
     #[test]
     fn event_count_counts_multiple_deliveries() {
-        let alice = ActorId::new(Arc::from("alice"));
-        let bob = ActorId::new(Arc::from("bob"));
-        let charlie = ActorId::new(Arc::from("charlie"));
+        let alice = ActorId::new("alice");
+        let bob = ActorId::new("bob");
+        let charlie = ActorId::new("charlie");
         // Same event delivered to multiple actors
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice));
         let topic = Arc::new(TestTopic::Data);
@@ -171,8 +171,8 @@ mod tests {
         let spy = TopicSpy::new(sample_records_with_actors(&actors), TestTopic::Control);
         let receivers = spy.receivers();
         assert_eq!(receivers.len(), 2);
-        assert!(receivers.iter().any(|r| r.name() == "alice"));
-        assert!(receivers.iter().any(|r| r.name() == "charlie"));
+        assert!(receivers.iter().any(|r| r.as_str() == "alice"));
+        assert!(receivers.iter().any(|r| r.as_str() == "charlie"));
     }
 
     #[test]
