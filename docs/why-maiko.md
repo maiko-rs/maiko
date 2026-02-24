@@ -25,7 +25,7 @@ On top of that routing core:
 
 - **Lifecycle management** - actors have `on_start`, `on_shutdown`, and `on_error` hooks. No manual `spawn` or `JoinHandle` tracking.
 - **Built-in test harness** - record events, inject them as specific actors, assert on delivery. No async timing hacks.
-- **Correlation tracking** - every event carries metadata linking it to its cause, enabling tracing of event chains through the system.
+- **Parent tracking** - every event carries metadata linking it to its cause, enabling tracing of event chains through the system.
 - **Monitoring hooks** - plug in observers for debugging, metrics, and logging without modifying actors.
 - **Flow control** - per-topic overflow policies (`Fail`, `Drop`, `Block`) and per-actor channel sizing.
 
@@ -75,13 +75,13 @@ Where Maiko is *not* the right fit is high-cardinality spawning - thousands of i
 | **Discovery** | Subscribe to topics | Manual | Pass addresses manually | Registry lookup | Pass references |
 | **Lifecycle** | Managed (start, stop, hooks) | Manual spawns | Managed | Managed | Managed |
 | **Testing** | Built-in harness, spies, chains | Roll your own | None built-in | None built-in | None built-in |
-| **Correlation** | First-class (IDs, chain tracing) | Manual | Manual | Manual | Manual |
+| **Causality** | First-class (parent IDs, chain tracing) | Manual | Manual | Manual | Manual |
 | **Best for** | Event-driven pipelines | Full control | Web services, RPC | Distributed systems | Low-latency loops |
 
 **When to choose Maiko over raw Tokio:**
 - You have 5+ communicating tasks and channel wiring is getting messy
 - You want built-in testing for event flow verification
-- You want correlation tracking and observability without extra infrastructure
+- You want event causality tracking and observability without extra infrastructure
 - You prefer declaring subscriptions over manually cloning senders
 
 **When to choose Maiko over actor frameworks:**

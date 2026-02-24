@@ -9,7 +9,7 @@ use crate::{
 ///
 /// Provides methods to inspect:
 /// - Whether and where the event was delivered
-/// - Child events correlated to this event
+/// - Child events linked to this event via parent ID
 pub struct EventSpy<E: Event, T: Topic<E>> {
     id: EventId,
     records: EventRecords<E, T>,
@@ -65,11 +65,9 @@ impl<E: Event, T: Topic<E>> EventSpy<E, T> {
             .collect()
     }
 
-    /// Returns a query for child events (events correlated to this one).
-    ///
-    /// Child events are those whose `correlation_id` matches this event's `id`.
+    /// Returns a query for child events (events whose parent ID matches this event's ID).
     pub fn children(&self) -> EventQuery<E, T> {
-        EventQuery::new(self.records.clone()).correlated_with(self.id)
+        EventQuery::new(self.records.clone()).children_of(self.id)
     }
 
     /// Returns true if the event was NOT delivered to the specified actor.
@@ -213,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn children_returns_correlated_events() {
+    fn children_returns_child_events() {
         let alice = ActorId::new("alice");
         let bob = ActorId::new("bob");
         let charlie = ActorId::new("charlie");
@@ -224,7 +222,7 @@ mod tests {
         let parent_id = parent.id();
         let parent_entry = EventEntry::new(parent, t.clone(), bob.clone());
 
-        // Child event correlated to parent
+        // Child event linked to parent
         let child = Arc::new(Envelope::new(TestEvent(2), bob).with_parent_id(parent_id));
         let child_entry = EventEntry::new(child, t.clone(), alice.clone());
 

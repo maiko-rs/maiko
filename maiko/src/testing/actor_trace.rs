@@ -106,7 +106,7 @@ impl<'a, E: Event, T: Topic<E>> ActorTrace<'a, E, T> {
     /// Returns the number of distinct paths in the event chain.
     ///
     /// Each path represents a branch from the root event to a leaf (an event
-    /// with no correlated children).
+    /// with no children).
     pub fn path_count(&self) -> usize {
         self.paths().len()
     }

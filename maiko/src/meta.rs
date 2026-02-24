@@ -20,7 +20,7 @@ pub struct Meta {
 }
 
 impl Meta {
-    /// Construct metadata for a given actor name and optional correlation id.
+    /// Construct metadata for a given actor ID and optional parent event ID.
     ///
     /// # Panics
     ///
@@ -56,7 +56,7 @@ impl Meta {
         &self.actor_id
     }
 
-    /// Optional parent event ID for correlation chains.
+    /// Optional parent event ID for causality tracking.
     pub fn parent_id(&self) -> Option<EventId> {
         self.parent_id
     }

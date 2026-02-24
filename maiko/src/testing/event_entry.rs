@@ -40,7 +40,7 @@ impl<E: Event, T: Topic<E>> EventEntry<E, T> {
         self.event.event()
     }
 
-    /// Returns the event metadata (sender, timestamp, correlation).
+    /// Returns the event metadata (sender, timestamp, parent ID).
     #[inline]
     pub fn meta(&self) -> &Meta {
         self.event.meta()

@@ -49,7 +49,7 @@ impl<E> EnvelopeBuilder<E> {
         self
     }
 
-    /// Set the parent event ID for correlation tracking.
+    /// Set the parent event ID for causality tracking.
     pub fn with_parent_id(mut self, parent_id: EventId) -> Self {
         self.parent_id = Some(parent_id);
         self

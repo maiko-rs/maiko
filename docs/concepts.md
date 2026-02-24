@@ -7,7 +7,7 @@ Maiko is built around a small set of core abstractions that work together:
 - **Actors** are independent units that process events and maintain state
 - **Context** allows actors to send events and interact with the runtime
 - **Supervisor** manages actor lifecycles and coordinates the system
-- **Envelopes** wrap events with metadata for tracing and correlation
+- **Envelopes** wrap events with metadata for tracing and parent-child linking
 
 This document covers each abstraction in detail.
 
@@ -184,8 +184,8 @@ Context capabilities:
 // Send events
 ctx.send(NetworkEvent::PacketReceived(data)).await?;
 
-// Send with correlation (for tracking related events)
-ctx.send_child_event(ResponseEvent::Ok, envelope.meta()).await?;
+// Send child event (linked to parent for tracing)
+ctx.send_child_event(ResponseEvent::Ok, envelope.id()).await?;
 
 // Stop this actor
 ctx.stop();
@@ -284,7 +284,7 @@ async fn step(&mut self) -> Result<StepAction> {
 
 - **Event metadata** - every envelope carries the sender's `ActorId`
 - **Test assertions** - verify which actors sent/received events
-- **Correlation** - track event flow between specific actors
+- **Parent tracking** - trace event causality between actors
 
 ```rust
 // Returned when registering an actor
@@ -325,13 +325,13 @@ async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()>
     // Access metadata
     let sender = envelope.meta().actor_name();
     let event_id = envelope.meta().id();
-    let correlation = envelope.meta().correlation_id();
+    let parent = envelope.meta().parent_id();
 
-    // Send correlated child event
-    self.ctx.send_child_event(ResponseEvent::Ok, envelope.meta()).await?;
+    // Send child event linked to this one
+    self.ctx.send_child_event(ResponseEvent::Ok, envelope.id()).await?;
 
     Ok(())
 }
 ```
 
-Correlation tracking enables tracing event causality through the system.
+Parent tracking enables tracing event causality through the system.

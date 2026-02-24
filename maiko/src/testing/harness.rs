@@ -256,7 +256,7 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
 
     /// Returns an event chain for tracing event propagation from a root event.
     ///
-    /// The chain captures all events correlated to the root (children, grandchildren, etc.)
+    /// The chain captures all descendant events of the root (children, grandchildren, etc.)
     /// and provides methods to verify actor flow and event sequences.
     ///
     /// # Example

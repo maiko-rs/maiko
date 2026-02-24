@@ -12,7 +12,7 @@ type Filter<E, T> = Rc<dyn Fn(&EventEntry<E, T>) -> bool>;
 /// A composable query builder for filtering and inspecting recorded events.
 ///
 /// `EventQuery` provides a fluent API for filtering events by various criteria
-/// (sender, receiver, topic, correlation, timing) and terminal operations for
+/// (sender, receiver, topic, parent, timing) and terminal operations for
 /// inspection (count, iteration, assertions).
 ///
 /// # Example
@@ -285,8 +285,8 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
         self
     }
 
-    /// Filter to events correlated with the given event ID (children).
-    pub fn correlated_with(mut self, id: impl Into<EventId>) -> Self {
+    /// Filter to child events of the given parent event ID.
+    pub fn children_of(mut self, id: impl Into<EventId>) -> Self {
         let parent_id = id.into();
         self.add_filter(move |e| e.meta().parent_id() == Some(parent_id));
         self
@@ -543,11 +543,11 @@ mod tests {
     }
 
     #[test]
-    fn correlated_with_filters_children() {
+    fn children_of_filters_by_parent_id() {
         let actors = TestActors::new();
         let topic = Arc::new(DefaultTopic);
 
-        // Create a parent event and a child correlated to it
+        // Create a parent event and a child linked to it
         let parent_envelope = Arc::new(Envelope::new(TestEvent::Ping, actors.alice.clone()));
         let parent_id = parent_envelope.id();
         let parent = EventEntry::new(parent_envelope, topic.clone(), actors.bob.clone());
@@ -561,7 +561,7 @@ mod tests {
         let unrelated = EventEntry::new(unrelated_envelope, topic, actors.alice.clone());
 
         let records = Arc::new(vec![parent, child, unrelated]);
-        let query = EventQuery::new(records).correlated_with(parent_id);
+        let query = EventQuery::new(records).children_of(parent_id);
         assert_eq!(query.count(), 1);
         assert!(query.first().unwrap().sender() == "bob");
     }

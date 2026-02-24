@@ -13,14 +13,11 @@ use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
 /// Runtime-provided context for an actor to interact with the system.
 ///
 /// Use it to:
-/// - `send(event)`: emit events into the broker tagged with this actor's name
-/// - `stop()`: request graceful shutdown of this actor (and trigger global cancel)
-/// - `name()`: retrieve the actor's name for logging/identity
+/// - `send(event)`: emit events into the broker tagged with this actor's ID
+/// - `send_child_event(event, parent_id)`: emit an event linked to a parent event
+/// - `stop()`: request graceful shutdown of this actor
+/// - `actor_id()`: retrieve the actor's identity
 /// - `is_alive()`: check whether the actor loop should continue running
-///
-/// Correlation:
-/// - `send_with_correlation(event, id)`: emit an event linked to a specific correlation id.
-/// - `send_child_event(event, meta)`: convenience to set correlation id to the parent `meta.id()`.
 ///
 /// See also: [`Envelope`], [`crate::Meta`], [`crate::Supervisor`].
 #[derive(Clone)]
@@ -51,7 +48,7 @@ impl<E> Context<E> {
         self.send_envelope(envelope).await
     }
 
-    /// Emit a child event correlated to the given parent `Meta`.
+    /// Emit a child event linked to the given parent event ID.
     pub async fn send_child_event<T: Into<EnvelopeBuilder<E>>>(
         &self,
         builder: T,

@@ -47,7 +47,7 @@ pub trait Actor: Send + 'static {
     ///
     /// Receives the full [`Envelope`] containing both the event payload and metadata.
     /// Use `envelope.event()` for pattern matching, or access `envelope.meta()` for
-    /// sender information and correlation IDs.
+    /// sender information and parent event IDs.
     ///
     /// # Example
     ///

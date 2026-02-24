@@ -30,7 +30,7 @@ impl<E> Envelope<E> {
         }
     }
 
-    /// Set the parent event ID for correlation tracking.
+    /// Set the parent event ID for causality tracking.
     ///
     /// Prefer [`Context::send_child_event`](crate::Context::send_child_event) which
     /// sets this automatically. Use `with_parent_id` directly only when constructing

@@ -86,28 +86,28 @@ sup.build_actor("consumer", |ctx| Consumer::new(ctx))
     .build()?;
 ```
 
-## Correlation Tracking
+## Parent Tracking
 
-Track event causality with correlation IDs:
+Track event causality with parent IDs:
 
 ```rust
 async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
-    // Check correlation
-    if let Some(parent_id) = envelope.meta().correlation_id() {
+    // Check if this event has a parent
+    if let Some(parent_id) = envelope.meta().parent_id() {
         println!("This event was triggered by: {}", parent_id);
     }
 
-    // Send a correlated child event
+    // Send a child event linked to this one
     self.ctx.send_child_event(
         MyEvent::Response(data),
-        envelope.meta()  // Links new event to this one
+        envelope.id()  // Links new event to this one
     ).await?;
 
     Ok(())
 }
 ```
 
-Child events carry their parent's ID as `correlation_id`, enabling tracing of event chains through the system. The [test harness](testing.md) uses correlation to track event propagation - `EventChain`, `ActorTrace`, and `EventTrace` let you assert on causal chains without manual bookkeeping.
+Child events carry their parent's ID as `parent_id`, enabling tracing of event chains through the system. The [test harness](testing.md) uses parent IDs to track event propagation - `EventChain`, `ActorTrace`, and `EventTrace` let you assert on causal chains without manual bookkeeping.
 
 ## Flow Control
 

@@ -1,7 +1,7 @@
 //! Event chain tracing for testing event propagation.
 //!
 //! An `EventChain` represents the tree of events spawned from a root event,
-//! tracked via correlation IDs. Use it to verify that events propagate
+//! tracked via parent IDs. Use it to verify that events propagate
 //! through the expected actors and trigger the expected child events.
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -13,7 +13,7 @@ use super::{ActorTrace, EventEntry, EventMatcher, EventRecords, EventTrace};
 
 /// A chain of events originating from a single root event.
 ///
-/// The chain captures the tree structure of event propagation via correlation IDs.
+/// The chain captures the tree structure of event propagation via parent IDs.
 /// Use `actors()` to query actor flow or `events()` to query event flow.
 ///
 /// # Example
@@ -49,13 +49,12 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
         let mut chain_ids = HashSet::new();
         let mut children_map: HashMap<EventId, Vec<EventId>> = HashMap::new();
 
-        // Build the tree structure from correlation IDs
-        // First, collect all unique event IDs and their correlation relationships
-        let mut event_correlations: HashMap<EventId, Option<EventId>> = HashMap::new();
+        // Build the tree structure from parent IDs
+        let mut parent_map: HashMap<EventId, Option<EventId>> = HashMap::new();
         for entry in records.iter() {
             let id = entry.id();
-            let correlation = entry.meta().parent_id();
-            event_correlations.entry(id).or_insert(correlation);
+            let parent = entry.meta().parent_id();
+            parent_map.entry(id).or_insert(parent);
         }
 
         // Find all descendants of root_id using BFS
@@ -63,9 +62,9 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
         chain_ids.insert(root_id);
 
         while let Some(current_id) = queue.pop() {
-            // Find all events that have current_id as their correlation
-            for (id, correlation) in &event_correlations {
-                if *correlation == Some(current_id) && !chain_ids.contains(id) {
+            // Find all events that have current_id as their parent
+            for (id, parent) in &parent_map {
+                if *parent == Some(current_id) && !chain_ids.contains(id) {
                     chain_ids.insert(*id);
                     queue.push(*id);
                     children_map.entry(current_id).or_default().push(*id);
@@ -75,7 +74,7 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
 
         // Sort children by timestamp for deterministic creation-order
         // (EventId is UUID-based and not monotonic)
-        let ts_lookup: HashMap<EventId, u64> = event_correlations
+        let ts_lookup: HashMap<EventId, u64> = parent_map
             .keys()
             .filter_map(|&id| {
                 records
@@ -244,7 +243,7 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
 
     /// Returns all distinct root-to-leaf event paths through the chain.
     ///
-    /// Each path is a sequence of event entries following the correlation tree.
+    /// Each path is a sequence of event entries following the parent-child tree.
     /// One representative entry per event (fan-out to multiple receivers does not
     /// create separate event paths - only distinct child events do).
     pub(super) fn event_paths(&self) -> Vec<Vec<&EventEntry<E, T>>> {
@@ -497,13 +496,13 @@ mod tests {
         let start_id = start.id();
         let start_entry = EventEntry::new(start, t.clone(), bob.clone());
 
-        // Child: Process from bob (correlated to start) to charlie
+        // Child: Process from bob (child of start) to charlie
         let process =
             Arc::new(Envelope::new(TestEvent::Process, bob.clone()).with_parent_id(start_id));
         let process_id = process.id();
         let process_entry = EventEntry::new(process, t.clone(), charlie.clone());
 
-        // Grandchild: Complete from charlie (correlated to process) to alice
+        // Grandchild: Complete from charlie (child of process) to alice
         let complete =
             Arc::new(Envelope::new(TestEvent::Complete, charlie).with_parent_id(process_id));
         let complete_entry = EventEntry::new(complete, t, alice);
@@ -526,12 +525,12 @@ mod tests {
         let start_id = start.id();
         let start_entry = EventEntry::new(start, t.clone(), bob.clone());
 
-        // Branch 1: Process from bob (correlated to start) to charlie
+        // Branch 1: Process from bob (child of start) to charlie
         let process =
             Arc::new(Envelope::new(TestEvent::Process, bob.clone()).with_parent_id(start_id));
         let process_entry = EventEntry::new(process, t.clone(), charlie.clone());
 
-        // Branch 2: Branch from bob (correlated to start) to alice
+        // Branch 2: Branch from bob (child of start) to alice
         let branch = Arc::new(Envelope::new(TestEvent::Branch, bob).with_parent_id(start_id));
         let branch_entry = EventEntry::new(branch, t, alice);
 

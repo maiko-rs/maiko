@@ -51,7 +51,7 @@
 //! | [`Topic`] | Routes events to interested actors |
 //! | [`Supervisor`] | Manages actor lifecycles and runtime |
 //! | [`Context`] | Allows actors to send events and interact with runtime |
-//! | [`Envelope`] | Wraps events with metadata (sender, correlation ID) |
+//! | [`Envelope`] | Wraps events with metadata (sender, timestamp, parent ID) |
 //! | [`ActorId`] | Unique identifier for a registered actor |
 //! | [`OverflowPolicy`] | Controls behavior when a subscriber's channel is full |
 //!
