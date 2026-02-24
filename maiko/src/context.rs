@@ -22,7 +22,7 @@ use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
 /// - `send_with_correlation(event, id)`: emit an event linked to a specific correlation id.
 /// - `send_child_event(event, meta)`: convenience to set correlation id to the parent `meta.id()`.
 ///
-/// See also: [`Envelope`], [`Meta`], [`crate::Supervisor`].
+/// See also: [`Envelope`], [`crate::Meta`], [`crate::Supervisor`].
 #[derive(Clone)]
 pub struct Context<E> {
     actor_id: ActorId,

@@ -1,5 +1,17 @@
 use crate::{ActorId, Envelope, Event, EventId};
 
+/// Builder for constructing [`Envelope`]s.
+///
+/// Users rarely interact with this directly. `Context::send()` accepts any
+/// `T: Into<EnvelopeBuilder<E>>`, so passing a bare event works:
+///
+/// ```rust,ignore
+/// ctx.send(MyEvent::Ping).await?;
+/// ```
+///
+/// The builder is created automatically via `From<E>` (for events) or
+/// `From<Envelope<E>>` (for pre-built envelopes). The [`Context`](crate::Context)
+/// fills in the actor ID before calling [`build()`](Self::build).
 #[derive(Debug, Clone)]
 pub struct EnvelopeBuilder<E> {
     envelope: Option<Envelope<E>>,
@@ -9,6 +21,11 @@ pub struct EnvelopeBuilder<E> {
 }
 
 impl<E> EnvelopeBuilder<E> {
+    /// Consume the builder and produce an [`Envelope`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if neither an event nor a pre-built envelope was provided.
     pub fn build(self) -> Envelope<E> {
         if let Some(envelope) = self.envelope {
             envelope
@@ -26,11 +43,13 @@ impl<E> EnvelopeBuilder<E> {
         }
     }
 
+    /// Set the sender's actor ID. Called internally by [`Context`](crate::Context).
     pub fn with_actor_id(mut self, actor_id: ActorId) -> Self {
         self.actor_id = Some(actor_id);
         self
     }
 
+    /// Set the parent event ID for correlation tracking.
     pub fn with_parent_id(mut self, parent_id: EventId) -> Self {
         self.parent_id = Some(parent_id);
         self

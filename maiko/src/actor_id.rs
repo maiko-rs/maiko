@@ -33,6 +33,7 @@ use std::{hash::Hash, sync::Arc};
 /// use `ActorId::new()` to create identifiers for those sources.
 #[derive(Debug, Clone, Ord, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
 pub struct ActorId(Arc<str>);
 
 impl ActorId {
