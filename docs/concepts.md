@@ -223,21 +223,24 @@ See [Advanced Topics - Per-Actor Config](advanced.md#per-actor-config) for detai
 
 ### Runtime Control
 
+The terminal methods (`run`, `join`, `stop`) consume the supervisor, preventing
+use-after-shutdown at compile time.
+
 ```rust
-// Start all actors (non-blocking)
+// Send events before shutdown (Supervisor as actor)
+sup.send(MyEvent::Data(42)).await?;
+
+// Start all actors (non-blocking) — borrows &mut self
 sup.start().await?;
 
-// Wait for completion
+// Wait for completion — consumes the supervisor
 sup.join().await?;
 
-// Or combine both
+// Or combine start + join in one call
 sup.run().await?;
 
-// Graceful shutdown
+// Graceful shutdown — consumes the supervisor
 sup.stop().await?;
-
-// Send events from outside (Supervisor as actor)
-sup.send(MyEvent::Data(42)).await?;
 ```
 
 ## StepAction
