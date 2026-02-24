@@ -21,6 +21,7 @@
 - **Breaking:** `correlation_id` renamed to `parent_id` throughout
 - **Breaking:** `Error::IOError` renamed to `IoError`
 - **Breaking:** `Context::send_envelope()` made private
+- **Breaking:** `Supervisor::run()`, `join()`, `stop()` now consume `self`, preventing use-after-shutdown ([#43])
 - Improved documentation with examples
 
 ### Removed
@@ -28,6 +29,8 @@
 - **Breaking:** `Context::send_with_correlation()` (use `send_child_event()` instead)
 - **Breaking:** `Deref` impls on `Envelope` (use `event()`) and `ActorId` (use `as_str()`)
 - **Breaking:** Deprecated methods removed from `Config`
+
+[#43]: https://github.com/maiko-rs/maiko/issues/43
 
 ---
 
