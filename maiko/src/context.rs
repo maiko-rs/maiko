@@ -7,6 +7,7 @@ use std::{
 };
 
 use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
 
 use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
 
@@ -15,7 +16,8 @@ use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
 /// Use it to:
 /// - `send(event)`: emit events into the broker tagged with this actor's ID
 /// - `send_child_event(event, parent_id)`: emit an event linked to a parent event
-/// - `stop()`: request graceful shutdown of this actor
+/// - `stop()`: stop this actor (other actors continue running)
+/// - `stop_runtime()`: initiate shutdown of the entire runtime
 /// - `actor_id()`: retrieve the actor's identity
 /// - `is_alive()`: check whether the actor loop should continue running
 ///
@@ -25,6 +27,7 @@ pub struct Context<E> {
     actor_id: ActorId,
     sender: Sender<Arc<Envelope<E>>>,
     alive: Arc<AtomicBool>,
+    cancel_token: Arc<CancellationToken>,
 }
 
 impl<E> Context<E> {
@@ -32,11 +35,13 @@ impl<E> Context<E> {
         actor_id: ActorId,
         sender: Sender<Arc<Envelope<E>>>,
         alive: Arc<AtomicBool>,
+        cancel_token: Arc<CancellationToken>,
     ) -> Self {
         Self {
             actor_id,
             sender,
             alive,
+            cancel_token,
         }
     }
 
@@ -81,10 +86,28 @@ impl<E> Context<E> {
         Ok(())
     }
 
-    /// Signal this actor to stop
+    /// Stop this actor.
+    ///
+    /// The actor's event loop will exit after the current tick completes,
+    /// and [`on_shutdown`](crate::Actor::on_shutdown) will be called.
+    /// Other actors continue running.
+    ///
+    /// To shut down the entire runtime instead, use [`stop_runtime()`](Self::stop_runtime).
     #[inline]
-    pub fn stop(&mut self) {
+    pub fn stop(&self) {
         self.alive.store(false, Ordering::Release);
+    }
+
+    /// Initiate shutdown of the entire runtime.
+    ///
+    /// All actors will be cancelled and the supervisor's
+    /// [`join()`](crate::Supervisor::join) or [`run()`](crate::Supervisor::run)
+    /// call will return.
+    ///
+    /// To stop only this actor, use [`stop()`](Self::stop).
+    #[inline]
+    pub fn stop_runtime(&self) {
+        self.cancel_token.cancel();
     }
 
     #[inline]

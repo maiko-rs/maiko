@@ -104,7 +104,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
                     );
                     match policy {
                         OverflowPolicy::Fail => {
-                            tracing::error!(actor=%subscriber.actor_id.as_str(), event_id=%e.id(), "closing channel due to OverflowPolicy Fail");
+                            tracing::info!(actor=%subscriber.actor_id.as_str(), event_id=%e.id(), "closing channel due to OverflowPolicy Fail");
                             to_be_closed
                                 .get_or_insert(Vec::new())
                                 .push(subscriber.actor_id.clone());

@@ -1,6 +1,7 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
 use tokio::{
+    select,
     sync::{
         Mutex, Notify,
         mpsc::{self, Receiver, Sender, channel},
@@ -227,7 +228,12 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         name: &str,
         sender: Sender<Arc<Envelope<E>>>,
     ) -> Context<E> {
-        Context::<E>::new(ActorId::new(name), sender, Arc::new(AtomicBool::new(true)))
+        Context::<E>::new(
+            ActorId::new(name),
+            sender,
+            Arc::new(AtomicBool::new(true)),
+            self.cancel_token.clone(),
+        )
     }
 
     /// Start the broker loop in a background task. This returns immediately.
@@ -251,12 +257,19 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// Returns [`Error::ActorJoinError`] if an actor task panics.
     /// Propagates any error returned by [`stop()`](Self::stop).
     pub async fn join(mut self) -> Result<()> {
-        while let Some(res) = self.tasks.join_next().await {
-            if !self.cancel_token.is_cancelled() {
-                self.stop().await?;
-                break;
+        loop {
+            select! {
+                _ = self.cancel_token.cancelled() => break,
+                maybe_res = self.tasks.join_next() => {
+                    match maybe_res {
+                        Some(res) => res??,
+                        None => break
+                    }
+                }
             }
-            res??;
+        }
+        if !self.cancel_token.is_cancelled() {
+            self.stop().await?;
         }
         Ok(())
     }

@@ -26,7 +26,7 @@
 //!
 //! ## 4. Self-Termination
 //!
-//! The Game actor stops the entire system using `ctx.stop()` after completing its task.
+//! The Game actor stops the entire runtime using `ctx.stop_runtime()` after completing its task.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -190,11 +190,10 @@ impl Actor for Game {
     }
 
     /// Check if the game should end and trigger shutdown.
-    /// The `ctx.stop()` calls actor to exit. As the supervisor expects all actors
-    /// to run, this will lead to overall shutdown.
+    /// `ctx.stop_runtime()` initiates shutdown of the entire runtime.
     async fn step(&mut self) -> maiko::Result<StepAction> {
         if self.round >= 10 {
-            self.ctx.stop();
+            self.ctx.stop_runtime();
         }
         Ok(StepAction::AwaitEvent)
     }
@@ -251,7 +250,7 @@ async fn main() -> Result<()> {
     // Printer subscribes to Output topic (receives results and messages)
     supervisor.add_actor("Printer", |_| Printer, [GuesserTopic::Output])?;
 
-    // Run until Game actor calls ctx.stop()
+    // Run until Game actor calls ctx.stop_runtime()
     supervisor.run().await?;
 
     println!("\nGame over!");
