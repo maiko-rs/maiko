@@ -12,6 +12,7 @@ use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result, internal::Comma
 /// - `stop()`: stop this actor (other actors continue running)
 /// - `stop_runtime()`: initiate shutdown of the entire runtime
 /// - `actor_id()`: retrieve the actor's identity
+/// - `is_sender_full()`: check channel congestion before sending
 ///
 /// See also: [`Envelope`], [`crate::Meta`], [`crate::Supervisor`].
 #[derive(Clone)]
@@ -82,6 +83,11 @@ impl<E> Context<E> {
     /// Other actors continue running.
     ///
     /// To shut down the entire runtime instead, use [`stop_runtime()`](Self::stop_runtime).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`](crate::Error::SendError) if the command
+    /// channel is closed (runtime already shut down).
     #[inline]
     pub fn stop(&self) -> Result {
         self.cmd_sender
@@ -96,6 +102,11 @@ impl<E> Context<E> {
     /// call will return.
     ///
     /// To stop only this actor, use [`stop()`](Self::stop).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`](crate::Error::SendError) if the command
+    /// channel is closed (runtime already shut down).
     #[inline]
     pub fn stop_runtime(&self) -> Result {
         self.cmd_sender.send(Command::StopRuntime)?;

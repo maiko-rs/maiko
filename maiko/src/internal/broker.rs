@@ -116,8 +116,8 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
                     };
                 }
                 Err(TrySendError::Closed(_)) => {
-                    // Channel is closed, will be cleaned up in the next maintenance cycle
-                    tracing::warn!(actor=%subscriber.actor_id.as_str(), "subscriber channel closed, will be removed in cleanup");
+                    // Channel is closed — subscriber already stopped
+                    tracing::warn!(actor=%subscriber.actor_id.as_str(), "subscriber channel closed");
                 }
             }
         }

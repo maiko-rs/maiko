@@ -295,8 +295,8 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Shutdown Process
     ///
     /// 1. Waits for the broker to receive all pending events (up to 10 ms)
-    /// 2. Stops the broker and waits for it to drain actor queues
-    /// 3. Cancels all actors and waits for tasks to complete
+    /// 2. Sends `StopBroker` command and waits for the broker to drain actor queues
+    /// 3. Sends `StopRuntime` command and waits for all actor tasks to complete
     ///
     /// # Errors
     ///
