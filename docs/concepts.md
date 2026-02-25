@@ -187,8 +187,11 @@ ctx.send(NetworkEvent::PacketReceived(data)).await?;
 // Send child event (linked to parent for tracing)
 ctx.send_child_event(ResponseEvent::Ok, envelope.id()).await?;
 
-// Stop this actor
+// Stop this actor (other actors continue)
 ctx.stop();
+
+// Shut down the entire runtime
+ctx.stop_runtime();
 
 // Get actor's name
 let name = ctx.actor_name();

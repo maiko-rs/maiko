@@ -125,7 +125,7 @@ cargo run --example guesser
 | **Event** | Messages that flow through the system (`#[derive(Event)]`) |
 | **Topic** | Routes events to interested actors |
 | **Actor** | Processes events via `handle_event()` and produces events via `step()` |
-| **Context** | Provides actors with `send()`, `stop()`, and metadata access |
+| **Context** | Provides actors with `send()`, `stop()`, `stop_runtime()`, and metadata access |
 | **OverflowPolicy** | Controls behavior when a subscriber's channel is full (`Fail`, `Drop`, `Block`) |
 | **Supervisor** | Manages actor lifecycles and the runtime |
 | **Envelope** | Wraps events with metadata (sender, correlation ID) |

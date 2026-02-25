@@ -106,10 +106,12 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
             }
         }
 
+        let res = self.actor.on_shutdown().await;
+
         #[cfg(feature = "monitoring")]
         self.notify_exit();
 
-        self.actor.on_shutdown().await
+        res
     }
 
     #[inline]

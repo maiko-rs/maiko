@@ -116,7 +116,7 @@ impl Actor for Producer {
         if self.cnt == 0 {
             println!("Producer checksum: {}", self.checksum);
             self.ctx.send(Event::Done).await?;
-        } else if self.cnt % 20 == 0 && !self.ctx.is_sender_full() {
+        } else if self.cnt % 50 == 0 && !self.ctx.is_sender_full() {
             // Skip telemetry when the broker channel is congested.
             // This avoids competing with Data events for stage 1 capacity.
             self.ctx.send(Event::BytesSent(self.bytes)).await?;
@@ -146,7 +146,7 @@ impl Actor for Consumer {
         match envelope.event() {
             Event::Done => {
                 println!("Consumer checksum: {}", self.checksum);
-                self.ctx.stop();
+                self.ctx.stop_runtime();
             }
             Event::Data(data) => {
                 self.checksum = self
@@ -173,7 +173,7 @@ impl Actor for Consumer {
 struct Telemetry;
 impl Actor for Telemetry {
     type Event = Event;
-    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result<()> {
+    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result {
         if let Event::BytesSent(bytes) = envelope.event() {
             println!("Transferred {bytes} bytes so far");
         }

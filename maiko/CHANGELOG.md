@@ -4,6 +4,7 @@
 
 ### Added
 
+- `Context::stop_runtime()` to shut down the entire runtime from within an actor
 - `# Errors` documentation on all public `Result`-returning methods
 - `EventId` newtype struct (was `type EventId = u128`)
 - `EnvelopeBuilder<E>` for flexible envelope construction
@@ -21,6 +22,7 @@
 - **Breaking:** `correlation_id` renamed to `parent_id` throughout
 - **Breaking:** `Error::IOError` renamed to `IoError`
 - **Breaking:** `Context::send_envelope()` made private
+- **Breaking:** `Context::stop()` now stops only the calling actor (was system-wide); use `stop_runtime()` for full shutdown
 - **Breaking:** `Supervisor::run()`, `join()`, `stop()` now consume `self`, preventing use-after-shutdown ([#43])
 - Improved documentation with examples
 
