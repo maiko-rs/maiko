@@ -22,6 +22,7 @@ pub struct Broker<E: Event, T: Topic<E>> {
     senders: SelectAll<ReceiverStream<Payload<E>>>,
     subscribers: Vec<Subscriber<E, T>>,
     command_tx: broadcast::Sender<Command>,
+    command_rx: broadcast::Receiver<Command>,
 
     #[cfg(feature = "monitoring")]
     monitoring: MonitoringSink<E, T>,
@@ -35,6 +36,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         Broker {
             senders: SelectAll::new(),
             subscribers: Vec::new(),
+            command_rx: command_tx.subscribe(),
             command_tx,
             #[cfg(feature = "monitoring")]
             monitoring,
@@ -130,11 +132,10 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        let mut command_rx = self.command_tx.subscribe();
         loop {
             select! {
                 biased;
-                Ok(cmd) = command_rx.recv() => match cmd {
+                Ok(cmd) = self.command_rx.recv() => match cmd {
                     Command::StopBroker => break,
                     Command::StopActor(id) => self.remove_subscriber(id),
                     _ => {}

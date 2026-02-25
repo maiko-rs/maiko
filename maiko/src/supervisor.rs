@@ -308,27 +308,23 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         let max = self.sender.max_capacity();
 
         // 1. Wait for the main channel to drain
-        println!("1");
         while start.elapsed() < timeout {
             if self.sender.capacity() == max {
                 break;
             }
             sleep(Duration::from_micros(100)).await;
         }
-        println!("2");
 
         // 2. Wait for the broker to shutdown gracefully
         self.cmd_sender.send(Command::StopBroker)?;
         let _ = self.broker.lock().await;
 
-        println!("3");
         // 3. Stop the actors
         self.cmd_sender.send(Command::StopRuntime)?;
         while let Some(res) = self.tasks.join_next().await {
             res??;
         }
 
-        println!("4");
         #[cfg(feature = "monitoring")]
         self.monitoring.stop().await;
 
