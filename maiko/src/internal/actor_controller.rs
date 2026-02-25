@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
-use tokio::{select, sync::mpsc::Receiver};
-use tokio_util::sync::CancellationToken;
+use tokio::{
+    select,
+    sync::{broadcast, mpsc::Receiver},
+};
 
 use crate::{
     Actor, Context, Envelope, Result, StepAction, Topic,
-    internal::{StepHandler, StepPause},
+    internal::{Command, StepHandler, StepPause},
 };
 
 #[cfg(feature = "monitoring")]
@@ -16,7 +18,7 @@ pub(crate) struct ActorController<A: Actor, T: Topic<A::Event>> {
     pub(crate) receiver: Receiver<Arc<Envelope<A::Event>>>,
     pub(crate) ctx: Context<A::Event>,
     pub(crate) max_events_per_tick: usize,
-    pub(crate) cancel_token: Arc<CancellationToken>,
+    pub(crate) command_rx: broadcast::Receiver<Command>,
 
     #[cfg(feature = "monitoring")]
     pub(crate) monitoring: MonitoringSink<A::Event, T>,
@@ -27,15 +29,15 @@ pub(crate) struct ActorController<A: Actor, T: Topic<A::Event>> {
 impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
     pub async fn run(&mut self) -> Result<()> {
         self.actor.on_start().await?;
-        let token = self.cancel_token.clone();
         let mut step_handler = StepHandler::default();
-        while self.ctx.is_alive() {
+        loop {
             select! {
                 biased;
 
-                _ = token.cancelled() => {
-                    self.ctx.stop();
-                    break;
+                Ok(cmd) = self.command_rx.recv() => match cmd {
+                    Command::StopActor(ref id) if id == self.ctx.actor_id() => break,
+                    Command::StopRuntime => break,
+                    _ => {}
                 },
 
                 maybe_event = self.receiver.recv() => {

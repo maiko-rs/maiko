@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use tokio::sync::mpsc::error::{SendError, TrySendError};
+use tokio::sync::{
+    broadcast,
+    mpsc::error::{SendError, TrySendError},
+};
 
 use crate::{ActorId, Envelope};
 
@@ -85,5 +88,11 @@ impl From<tokio::task::JoinError> for Error {
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
         Error::IoError(e.to_string())
+    }
+}
+
+impl<E> From<broadcast::error::SendError<E>> for Error {
+    fn from(error: broadcast::error::SendError<E>) -> Self {
+        Error::SendError(error.to_string())
     }
 }

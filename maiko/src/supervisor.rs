@@ -1,19 +1,18 @@
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::Arc;
 
 use tokio::{
     select,
     sync::{
-        Mutex, Notify,
+        Mutex, Notify, broadcast,
         mpsc::{self, Receiver, Sender, channel},
     },
     task::JoinSet,
 };
-use tokio_util::sync::CancellationToken;
 
 use crate::{
     Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope,
     EnvelopeBuilder, Error, Event, Label, Result, Subscribe, Topic,
-    internal::{ActorController, Broker, Subscriber, Subscription},
+    internal::{ActorController, Broker, Command, Subscriber, Subscription},
 };
 
 #[cfg(feature = "monitoring")]
@@ -51,11 +50,11 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
     broker: Arc<Mutex<Broker<E, T>>>,
     pub(crate) sender: Sender<Arc<Envelope<E>>>,
     tasks: JoinSet<Result<()>>,
-    cancel_token: Arc<CancellationToken>,
-    broker_cancel_token: Arc<CancellationToken>,
     start_notifier: Arc<Notify>,
     supervisor_id: ActorId,
     registrations: Vec<(ActorId, Subscription<T>)>,
+
+    cmd_sender: broadcast::Sender<Command>,
 
     #[cfg(feature = "monitoring")]
     monitoring: MonitorRegistry<E, T>,
@@ -66,7 +65,6 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     pub fn new(config: Config) -> Self {
         let config = Arc::new(config);
         let (tx, rx) = channel::<Arc<Envelope<E>>>(config.broker_channel_capacity());
-        let cancel_token = Arc::new(CancellationToken::new());
 
         #[cfg(feature = "monitoring")]
         let monitoring = {
@@ -77,10 +75,10 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
         let supervisor_id = ActorId::new("supervisor");
 
-        let broker_cancel_token = Arc::new(CancellationToken::new());
+        let (cmd_sender, _) = broadcast::channel(32);
+
         let mut broker = Broker::new(
-            broker_cancel_token.clone(),
-            config.clone(),
+            cmd_sender.clone(),
             #[cfg(feature = "monitoring")]
             monitoring.sink(),
         );
@@ -91,11 +89,10 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             config,
             sender: tx,
             tasks: JoinSet::new(),
-            cancel_token,
-            broker_cancel_token,
             start_notifier: Arc::new(Notify::new()),
             supervisor_id,
             registrations: Vec::new(),
+            cmd_sender,
 
             #[cfg(feature = "monitoring")]
             monitoring,
@@ -203,7 +200,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             receiver: rx,
             ctx,
             max_events_per_tick: config.max_events_per_tick(),
-            cancel_token: self.cancel_token.clone(),
+            command_rx: self.cmd_sender.subscribe(),
 
             #[cfg(feature = "monitoring")]
             monitoring: self.monitoring.sink(),
@@ -228,12 +225,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         name: &str,
         sender: Sender<Arc<Envelope<E>>>,
     ) -> Context<E> {
-        Context::<E>::new(
-            ActorId::new(name),
-            sender,
-            Arc::new(AtomicBool::new(true)),
-            self.cancel_token.clone(),
-        )
+        Context::<E>::new(ActorId::new(name), sender, self.cmd_sender.clone())
     }
 
     /// Start the broker loop in a background task. This returns immediately.
@@ -257,9 +249,10 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// Returns [`Error::ActorJoinError`] if an actor task panics.
     /// Propagates any error returned by [`stop()`](Self::stop).
     pub async fn join(mut self) -> Result<()> {
+        let mut cmd_rx = self.cmd_sender.subscribe();
         loop {
             select! {
-                _ = self.cancel_token.cancelled() => break,
+                Ok(cmd) = cmd_rx.recv() => if cmd == Command::StopRuntime { break; },
                 maybe_res = self.tasks.join_next() => {
                     match maybe_res {
                         Some(res) => res??,
@@ -268,9 +261,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
                 }
             }
         }
-        if !self.cancel_token.is_cancelled() {
-            self.stop().await?;
-        }
+        self.stop().await?;
         Ok(())
     }
 
@@ -325,14 +316,14 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         }
 
         // 2. Wait for the broker to shutdown gracefully
-        self.broker_cancel_token.cancel();
+        self.cmd_sender.send(Command::StopBroker)?;
         let _ = self.broker.lock().await;
 
         #[cfg(feature = "monitoring")]
         self.monitoring.stop().await;
 
         // 3. Stop the actors
-        self.cancel_token.cancel();
+        self.cmd_sender.send(Command::StopRuntime)?;
         while let Some(res) = self.tasks.join_next().await {
             res??;
         }
@@ -424,11 +415,8 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
 
 impl<E: Event, T: Topic<E>> Drop for Supervisor<E, T> {
     fn drop(&mut self) {
-        if !self.cancel_token.is_cancelled() {
-            self.cancel_token.cancel();
-        }
-        if !self.broker_cancel_token.is_cancelled() {
-            self.broker_cancel_token.cancel();
+        if !self.cmd_sender.is_empty() {
+            let _ = self.cmd_sender.send(Command::StopRuntime);
         }
         #[cfg(feature = "monitoring")]
         self.monitoring.cancel();

@@ -1,15 +1,8 @@
-use std::{
-    fmt,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::{fmt, sync::Arc};
 
-use tokio::sync::mpsc::Sender;
-use tokio_util::sync::CancellationToken;
+use tokio::sync::{broadcast, mpsc::Sender};
 
-use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
+use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result, internal::Command};
 
 /// Runtime-provided context for an actor to interact with the system.
 ///
@@ -19,29 +12,25 @@ use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
 /// - `stop()`: stop this actor (other actors continue running)
 /// - `stop_runtime()`: initiate shutdown of the entire runtime
 /// - `actor_id()`: retrieve the actor's identity
-/// - `is_alive()`: check whether the actor loop should continue running
 ///
 /// See also: [`Envelope`], [`crate::Meta`], [`crate::Supervisor`].
 #[derive(Clone)]
 pub struct Context<E> {
     actor_id: ActorId,
     sender: Sender<Arc<Envelope<E>>>,
-    alive: Arc<AtomicBool>,
-    cancel_token: Arc<CancellationToken>,
+    cmd_sender: broadcast::Sender<Command>,
 }
 
 impl<E> Context<E> {
     pub(crate) fn new(
         actor_id: ActorId,
         sender: Sender<Arc<Envelope<E>>>,
-        alive: Arc<AtomicBool>,
-        cancel_token: Arc<CancellationToken>,
+        cmd_sender: broadcast::Sender<Command>,
     ) -> Self {
         Self {
             actor_id,
             sender,
-            alive,
-            cancel_token,
+            cmd_sender,
         }
     }
 
@@ -94,8 +83,10 @@ impl<E> Context<E> {
     ///
     /// To shut down the entire runtime instead, use [`stop_runtime()`](Self::stop_runtime).
     #[inline]
-    pub fn stop(&self) {
-        self.alive.store(false, Ordering::Release);
+    pub fn stop(&self) -> Result {
+        self.cmd_sender
+            .send(Command::StopActor(self.actor_id.clone()))?;
+        Ok(())
     }
 
     /// Initiate shutdown of the entire runtime.
@@ -106,8 +97,9 @@ impl<E> Context<E> {
     ///
     /// To stop only this actor, use [`stop()`](Self::stop).
     #[inline]
-    pub fn stop_runtime(&self) {
-        self.cancel_token.cancel();
+    pub fn stop_runtime(&self) -> Result {
+        self.cmd_sender.send(Command::StopRuntime)?;
+        Ok(())
     }
 
     #[inline]
@@ -119,12 +111,6 @@ impl<E> Context<E> {
     #[inline]
     pub fn actor_name(&self) -> &str {
         self.actor_id.as_str()
-    }
-
-    /// Whether the actor is considered alive by the runtime.
-    #[inline]
-    pub fn is_alive(&self) -> bool {
-        self.alive.load(Ordering::Acquire)
     }
 
     /// Returns a future that never completes.
@@ -173,7 +159,6 @@ impl<E> fmt::Debug for Context<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Context")
             .field("actor_id", &self.actor_id)
-            .field("is_alive", &self.is_alive())
             .field("sender", &self.sender)
             .finish()
     }

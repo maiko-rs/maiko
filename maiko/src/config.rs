@@ -32,10 +32,6 @@ pub struct Config {
     /// Default: 10
     default_max_events_per_tick: usize,
 
-    /// How often the broker cleans up closed subscriber channels.
-    /// Default: 10s
-    maintenance_interval: tokio::time::Duration,
-
     /// Buffer size for the monitoring event channel.
     /// Default: 1024
     monitoring_channel_capacity: usize,
@@ -47,7 +43,6 @@ impl Default for Config {
             broker_channel_capacity: 256,
             default_actor_channel_capacity: 128,
             default_max_events_per_tick: 10,
-            maintenance_interval: tokio::time::Duration::from_secs(10),
             monitoring_channel_capacity: 1024,
         }
     }
@@ -85,19 +80,6 @@ impl Config {
     /// Returns the default maximum events processed per tick.
     pub fn default_max_events_per_tick(&self) -> usize {
         self.default_max_events_per_tick
-    }
-
-    /// Set the maintenance interval for the broker.
-    ///
-    /// This controls how often the broker cleans up expired subscribers.
-    pub fn with_maintenance_interval(mut self, interval: tokio::time::Duration) -> Self {
-        self.maintenance_interval = interval;
-        self
-    }
-
-    /// Returns the broker maintenance interval.
-    pub fn maintenance_interval(&self) -> tokio::time::Duration {
-        self.maintenance_interval
     }
 
     /// Set the buffer size for the monitoring event channel.

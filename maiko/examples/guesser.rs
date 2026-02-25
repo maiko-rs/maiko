@@ -193,7 +193,7 @@ impl Actor for Game {
     /// `ctx.stop_runtime()` initiates shutdown of the entire runtime.
     async fn step(&mut self) -> maiko::Result<StepAction> {
         if self.round >= 10 {
-            self.ctx.stop_runtime();
+            self.ctx.stop_runtime()?;
         }
         Ok(StepAction::AwaitEvent)
     }
