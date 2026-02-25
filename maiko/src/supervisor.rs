@@ -228,6 +228,31 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         Context::<E>::new(ActorId::new(name), sender, self.cmd_sender.clone())
     }
 
+    /// Emit an event into the broker from the supervisor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::SendError`] if the broker channel is closed.
+    pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result<()> {
+        let envelope = builder
+            .into()
+            .with_actor_id(self.supervisor_id.clone())
+            .build()?;
+        self.sender.send(envelope.into()).await?;
+        Ok(())
+    }
+
+    /// Convenience method to start and then await completion of all tasks.
+    /// Blocks until shutdown.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error from [`start()`](Self::start) or [`join()`](Self::join).
+    pub async fn run(mut self) -> Result<()> {
+        self.start().await?;
+        self.join().await
+    }
+
     /// Start the broker loop in a background task. This returns immediately.
     ///
     /// # Errors
@@ -265,31 +290,6 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         Ok(())
     }
 
-    /// Convenience method to start and then await completion of all tasks.
-    /// Blocks until shutdown.
-    ///
-    /// # Errors
-    ///
-    /// Propagates any error from [`start()`](Self::start) or [`join()`](Self::join).
-    pub async fn run(mut self) -> Result<()> {
-        self.start().await?;
-        self.join().await
-    }
-
-    /// Emit an event into the broker from the supervisor.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::SendError`] if the broker channel is closed.
-    pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result<()> {
-        let envelope = builder
-            .into()
-            .with_actor_id(self.supervisor_id.clone())
-            .build()?;
-        self.sender.send(envelope.into()).await?;
-        Ok(())
-    }
-
     /// Request a graceful shutdown, then await all actor tasks.
     ///
     /// # Shutdown Process
@@ -308,25 +308,30 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         let max = self.sender.max_capacity();
 
         // 1. Wait for the main channel to drain
+        println!("1");
         while start.elapsed() < timeout {
             if self.sender.capacity() == max {
                 break;
             }
             sleep(Duration::from_micros(100)).await;
         }
+        println!("2");
 
         // 2. Wait for the broker to shutdown gracefully
         self.cmd_sender.send(Command::StopBroker)?;
         let _ = self.broker.lock().await;
 
-        #[cfg(feature = "monitoring")]
-        self.monitoring.stop().await;
-
+        println!("3");
         // 3. Stop the actors
         self.cmd_sender.send(Command::StopRuntime)?;
         while let Some(res) = self.tasks.join_next().await {
             res??;
         }
+
+        println!("4");
+        #[cfg(feature = "monitoring")]
+        self.monitoring.stop().await;
+
         Ok(())
     }
 
@@ -415,8 +420,9 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
 
 impl<E: Event, T: Topic<E>> Drop for Supervisor<E, T> {
     fn drop(&mut self) {
-        if !self.cmd_sender.is_empty() {
+        if self.cmd_sender.receiver_count() > 0 {
             let _ = self.cmd_sender.send(Command::StopRuntime);
+            let _ = self.cmd_sender.send(Command::StopBroker);
         }
         #[cfg(feature = "monitoring")]
         self.monitoring.cancel();
