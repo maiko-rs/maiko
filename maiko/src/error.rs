@@ -28,7 +28,7 @@ pub enum Error {
     External(#[source] Arc<dyn std::error::Error + Send + Sync>),
 
     #[error("IO error: {0}")]
-    IoError(String),
+    IoError(#[source] Arc<std::io::Error>),
 
     #[error("Not enough data to build an envelope")]
     EnvelopeBuildError,
@@ -41,16 +41,26 @@ pub enum Error {
     SettleTimeout(std::time::Duration, usize),
 }
 
+impl Error {
+    pub fn external(e: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Error::External(Arc::new(e))
+    }
+
+    pub(crate) fn internal(e: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Error::Internal(Arc::new(e))
+    }
+}
+
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::MailboxClosed, Self::MailboxClosed) => true,
-            (Self::BrokerAlreadyStarted, Self::BrokerAlreadyStarted) => true,
             (Self::MailboxFull, Self::MailboxFull) => true,
+            (Self::BrokerAlreadyStarted, Self::BrokerAlreadyStarted) => true,
             (Self::DuplicateActorName(a), Self::DuplicateActorName(b)) => a == b,
             (Self::External(a), Self::External(b)) => Arc::ptr_eq(a, b),
             (Self::Internal(a), Self::Internal(b)) => Arc::ptr_eq(a, b),
-            (Self::IoError(a), Self::IoError(b)) => a == b,
+            (Self::IoError(a), Self::IoError(b)) => Arc::ptr_eq(a, b),
             (Self::EnvelopeBuildError, Self::EnvelopeBuildError) => true,
             #[cfg(feature = "test-harness")]
             (Self::SettleTimeout(a1, a2), Self::SettleTimeout(b1, b2)) => a1 == b1 && a2 == b2,
@@ -78,6 +88,6 @@ impl<E> From<TrySendError<Arc<Envelope<E>>>> for Error {
 
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
-        Error::IoError(e.to_string())
+        Error::IoError(Arc::new(e))
     }
 }

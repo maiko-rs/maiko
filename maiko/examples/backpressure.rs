@@ -27,7 +27,7 @@
 //! - Change Data policy to Drop and watch checksums diverge
 //! - Change Command policy to Drop and watch the system hang (Done is lost)
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 #[cfg(feature = "monitoring")]
 use maiko::monitors::Tracer;
@@ -85,7 +85,7 @@ struct Producer {
 impl Actor for Producer {
     type Event = Event;
 
-    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result<()> {
+    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result {
         if let Event::Start(cnt) = envelope.event() {
             self.cnt = *cnt;
             self.checksum = 0;
@@ -100,7 +100,7 @@ impl Actor for Producer {
         }
 
         let mut buf: [u8; 1024] = [0; 1024];
-        getrandom::fill(&mut buf).map_err(|e| maiko::Error::External(Arc::new(e)))?;
+        getrandom::fill(&mut buf).map_err(maiko::Error::external)?;
         let data = Box::new(buf);
 
         self.checksum = self
@@ -124,7 +124,7 @@ impl Actor for Producer {
         Ok(StepAction::Continue)
     }
 
-    fn on_error(&mut self, error: maiko::Error) -> maiko::Result<()> {
+    fn on_error(&mut self, error: maiko::Error) -> maiko::Result {
         eprintln!("Producer error: {}", error);
         Ok(())
     }
@@ -142,7 +142,7 @@ struct Consumer {
 
 impl Actor for Consumer {
     type Event = Event;
-    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result<()> {
+    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result {
         match envelope.event() {
             Event::Done => {
                 println!("Consumer checksum: {}", self.checksum);
@@ -160,7 +160,7 @@ impl Actor for Consumer {
         Ok(())
     }
 
-    fn on_error(&mut self, error: maiko::Error) -> maiko::Result<()> {
+    fn on_error(&mut self, error: maiko::Error) -> maiko::Result {
         eprintln!("Consumer error: {}", error);
         Ok(())
     }

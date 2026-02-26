@@ -49,7 +49,7 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
     config: Arc<Config>,
     broker: Arc<Mutex<Broker<E, T>>>,
     pub(crate) sender: Sender<Arc<Envelope<E>>>,
-    tasks: JoinSet<Result<()>>,
+    tasks: JoinSet<Result>,
     start_notifier: Arc<Notify>,
     supervisor_id: ActorId,
     registrations: Vec<(ActorId, Subscription<T>)>,
@@ -251,7 +251,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Propagates any error from [`start()`](Self::start) or [`join()`](Self::join).
-    pub async fn run(mut self) -> Result<()> {
+    pub async fn run(mut self) -> Result {
         self.start().await?;
         self.join().await
     }
@@ -261,7 +261,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Currently infallible, but returns `Result` for forward compatibility.
-    pub async fn start(&mut self) -> Result<()> {
+    pub async fn start(&mut self) -> Result {
         let broker = self.broker.clone();
         self.tasks
             .spawn(async move { broker.lock().await.run().await });
@@ -271,7 +271,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
     async fn join_next_task(tasks: &mut JoinSet<Result>) -> Option<Result> {
         tasks.join_next().await.map(|res| match res {
-            Err(e) => Err(Error::Internal(Arc::new(e))),
+            Err(e) => Err(Error::internal(e)),
             Ok(Err(e)) => Err(e),
             _ => Ok(()),
         })
@@ -284,14 +284,14 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// Returns [`Error::Internal`] if an actor task panics.
     /// Propagates any error returned by [`stop()`](Self::stop).
-    pub async fn join(mut self) -> Result<()> {
+    pub async fn join(mut self) -> Result {
         let mut res = Ok(());
         let tasks = &mut self.tasks;
         loop {
             select! {
                 maybe_cmd = self.cmd_rx.recv() => match maybe_cmd {
                     Ok(Command::StopRuntime) => break,
-                    Err(err) => return Err(Error::Internal(Arc::new(err))),
+                    Err(err) => return Err(Error::internal(err)),
                     _ => {}
                 },
                 maybe_res = Self::join_next_task(tasks) => {
@@ -321,7 +321,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Returns [`Error::Internal`] if an actor task panics during shutdown.
-    pub async fn stop(mut self) -> Result<()> {
+    pub async fn stop(mut self) -> Result {
         use tokio::time::*;
 
         let tasks = &mut self.tasks;
@@ -460,11 +460,9 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
 impl<E: Event, T: Topic<E>> Drop for Supervisor<E, T> {
     fn drop(&mut self) {
         if self.cmd_tx.as_ref().receiver_count() > 0 {
-            let _ = self.cmd_tx.send(Command::StopRuntime);
             let _ = self.cmd_tx.send(Command::StopBroker);
+            let _ = self.cmd_tx.send(Command::StopRuntime);
         }
-        #[cfg(feature = "monitoring")]
-        self.monitoring.cancel();
     }
 }
 
@@ -576,7 +574,7 @@ mod tests {
 
     impl Actor for DummyActor {
         type Event = TestEvent;
-        async fn handle_event(&mut self, _: &Envelope<Self::Event>) -> Result<()> {
+        async fn handle_event(&mut self, _: &Envelope<Self::Event>) -> Result {
             Ok(())
         }
     }

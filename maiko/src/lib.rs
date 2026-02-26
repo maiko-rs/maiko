@@ -23,7 +23,7 @@
 //! impl Actor for Greeter {
 //!     type Event = MyEvent;
 //!
-//!     async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+//!     async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
 //!         if let MyEvent::Hello(name) = envelope.event() {
 //!             println!("Hello, {}!", name);
 //!         }
@@ -32,7 +32,7 @@
 //! }
 //!
 //! #[tokio::main]
-//! async fn main() -> Result<()> {
+//! async fn main() -> Result {
 //!     let mut sup = Supervisor::<MyEvent>::default();
 //!     sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic])?;
 //!

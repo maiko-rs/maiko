@@ -52,7 +52,7 @@ pub trait Actor: Send + 'static {
     /// # Example
     ///
     /// ```ignore
-    /// async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    /// async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
     ///     match envelope.event() {
     ///         MyEvent::Foo(x) => self.handle_foo(x).await,
     ///         MyEvent::Bar => {
@@ -72,7 +72,7 @@ pub trait Actor: Send + 'static {
     fn handle_event(
         &mut self,
         envelope: &Envelope<Self::Event>,
-    ) -> impl Future<Output = Result<()>> + Send {
+    ) -> impl Future<Output = Result> + Send {
         let _ = envelope;
         async { Ok(()) }
     }
@@ -132,7 +132,7 @@ pub trait Actor: Send + 'static {
     ///
     /// Returning an error prevents the actor from starting and propagates
     /// the error to the supervisor.
-    fn on_start(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn on_start(&mut self) -> impl Future<Output = Result> + Send {
         async { Ok(()) }
     }
 
@@ -141,7 +141,7 @@ pub trait Actor: Send + 'static {
     /// # Errors
     ///
     /// Returning an error propagates it to the supervisor.
-    fn on_shutdown(&mut self) -> impl Future<Output = Result<()>> + Send {
+    fn on_shutdown(&mut self) -> impl Future<Output = Result> + Send {
         async { Ok(()) }
     }
 
@@ -164,13 +164,13 @@ pub trait Actor: Send + 'static {
     /// # struct MyActor;
     /// # impl Actor for MyActor {
     /// #     type Event = MyEvent;
-    /// fn on_error(&mut self, error: Error) -> Result<()> {
+    /// fn on_error(&mut self, error: Error) -> Result {
     ///     eprintln!("Actor error: {}", error);
     ///     Ok(())  // Swallow and continue
     /// }
     /// # }
     /// ```
-    fn on_error(&mut self, error: Error) -> Result<()> {
+    fn on_error(&mut self, error: Error) -> Result {
         Err(error)
     }
 }

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use tokio::sync::broadcast;
 
 use super::Command;
@@ -11,7 +9,7 @@ pub struct CommandSender(broadcast::Sender<Command>);
 
 impl CommandSender {
     pub fn send(&self, cmd: Command) -> Result {
-        self.0.send(cmd).map_err(|e| Error::Internal(Arc::new(e)))?;
+        self.0.send(cmd).map_err(Error::internal)?;
         Ok(())
     }
 }

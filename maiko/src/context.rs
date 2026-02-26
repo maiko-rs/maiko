@@ -46,7 +46,7 @@ impl<E> Context<E> {
     ///
     /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
-    pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result<()> {
+    pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result {
         let envelope = builder
             .into()
             .with_actor_id(self.actor_id.clone())
@@ -64,7 +64,7 @@ impl<E> Context<E> {
         &self,
         builder: T,
         parent_id: EventId,
-    ) -> Result<()> {
+    ) -> Result {
         let envelope = builder
             .into()
             .with_actor_id(self.actor_id.clone())
@@ -74,7 +74,7 @@ impl<E> Context<E> {
     }
 
     #[inline]
-    async fn send_envelope<T: Into<Envelope<E>>>(&self, envelope: T) -> Result<()> {
+    async fn send_envelope<T: Into<Envelope<E>>>(&self, envelope: T) -> Result {
         self.sender.send(Arc::new(envelope.into())).await?;
         Ok(())
     }

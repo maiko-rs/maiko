@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{Error, Event, Topic, testing::EventQuery};
+use crate::{Error, Event, Result, Topic, testing::EventQuery};
 
 use super::Harness;
 
@@ -53,7 +53,7 @@ where
         self
     }
 
-    async fn run(self) -> crate::Result<()> {
+    async fn run(self) -> Result {
         let deadline = Instant::now() + self.timeout;
 
         // Let in-flight events propagate through the async pipeline
@@ -124,7 +124,7 @@ impl<'a, E: Event, T: Topic<E>, F> IntoFuture for Expectation<'a, E, T, F>
 where
     F: Fn(EventQuery<E, T>) -> bool + 'a,
 {
-    type Output = crate::Result<()>;
+    type Output = Result;
     type IntoFuture = std::pin::Pin<Box<dyn std::future::Future<Output = Self::Output> + 'a>>;
 
     fn into_future(self) -> Self::IntoFuture {
@@ -137,7 +137,7 @@ mod tests {
     use std::time::Duration;
 
     use crate::{
-        Actor, Envelope, Event, Label, Subscribe, Supervisor,
+        Actor, Envelope, Event, Label, Result, Subscribe, Supervisor,
         testing::{EventMatcher, Harness},
     };
     use std::borrow::Cow;
@@ -165,7 +165,7 @@ mod tests {
     impl Actor for Echo {
         type Event = TestEvent;
 
-        async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> crate::Result<()> {
+        async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
             if matches!(envelope.event(), TestEvent::Ping) {
                 self.ctx.send(TestEvent::Pong).await?;
             }

@@ -46,7 +46,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         }
     }
 
-    pub(crate) fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) -> Result<()> {
+    pub(crate) fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) -> Result {
         if self.subscribers.contains(&subscriber) {
             return Err(Error::DuplicateActorName(subscriber.actor_id.clone()));
         }
@@ -134,7 +134,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         Ok(())
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result {
         let mut res = Ok(());
         loop {
             select! {
@@ -146,7 +146,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
                         _ => {}
                     }
                     Err(e) => {
-                        res = Err(Error::Internal(Arc::new(e)));
+                        res = Err(Error::internal(e));
                         break;
                     }
                 },

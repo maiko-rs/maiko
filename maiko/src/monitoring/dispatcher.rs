@@ -13,7 +13,6 @@ use tokio::{
     sync::{mpsc::Receiver, oneshot},
     time::Instant,
 };
-use tokio_util::sync::CancellationToken;
 
 use crate::{
     Event, Topic,
@@ -38,28 +37,24 @@ pub(crate) struct MonitorDispatcher<E: Event, T: Topic<E>> {
     receiver: Receiver<MonitorCommand<E, T>>,
     monitors: HashMap<MonitorId, MonitorEntry<E, T>>,
     last_id: MonitorId,
-    cancel_token: Arc<CancellationToken>,
     ids_to_remove: Vec<MonitorId>,
     is_active: Arc<AtomicBool>,
     flush_pending: Option<(oneshot::Sender<()>, Duration)>,
     last_activity: Instant,
+    is_alive: bool,
 }
 
 impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
-    pub fn new(
-        receiver: Receiver<MonitorCommand<E, T>>,
-        cancel_token: Arc<CancellationToken>,
-        is_active: Arc<AtomicBool>,
-    ) -> Self {
+    pub fn new(receiver: Receiver<MonitorCommand<E, T>>, is_active: Arc<AtomicBool>) -> Self {
         Self {
             receiver,
-            cancel_token,
             monitors: HashMap::new(),
             last_id: 0,
             ids_to_remove: Vec::with_capacity(8),
             is_active,
             flush_pending: None,
             last_activity: Instant::now(),
+            is_alive: true,
         }
     }
 
@@ -100,11 +95,8 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
     pub async fn run(&mut self) {
         const FLUSH_CHECK_INTERVAL: Duration = Duration::from_micros(100);
 
-        loop {
+        while self.is_alive {
             select! {
-                _ = self.cancel_token.cancelled() => {
-                    break;
-                }
                 Some(cmd) = self.receiver.recv() => {
                     self.last_activity = Instant::now();
                     self.handle_command(cmd);
@@ -150,6 +142,9 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
             } => {
                 self.flush_pending = Some((response, settle_window));
                 self.try_complete_flush();
+            }
+            Shutdown => {
+                self.is_alive = false;
             }
             _ => {}
         }

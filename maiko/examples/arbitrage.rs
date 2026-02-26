@@ -115,7 +115,7 @@ struct Normalizer {
 impl Actor for Normalizer {
     type Event = MarketEvent;
 
-    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result<()> {
+    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result {
         let tick = match envelope.event() {
             MarketEvent::AlphaTick { price, quantity } => {
                 Tick::new(Exchange::Alpha, *price, *quantity as usize, Side::Buy)
@@ -178,7 +178,7 @@ impl Trader {
 impl Actor for Trader {
     type Event = MarketEvent;
 
-    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result<()> {
+    async fn handle_event(&mut self, envelope: &maiko::Envelope<Self::Event>) -> maiko::Result {
         if let MarketEvent::MarketTick(tick) = envelope.event() {
             self.update_book(tick);
 

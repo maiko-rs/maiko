@@ -80,3 +80,9 @@ impl From<String> for ActorId {
         Self(Arc::from(s))
     }
 }
+
+impl AsRef<str> for ActorId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
