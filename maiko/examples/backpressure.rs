@@ -146,7 +146,7 @@ impl Actor for Consumer {
         match envelope.event() {
             Event::Done => {
                 println!("Consumer checksum: {}", self.checksum);
-                self.ctx.stop_runtime();
+                self.ctx.stop_runtime()?;
             }
             Event::Data(data) => {
                 self.checksum = self

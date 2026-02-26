@@ -1,15 +1,11 @@
-use std::{
-    fmt,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::{fmt, sync::Arc};
 
 use tokio::sync::mpsc::Sender;
-use tokio_util::sync::CancellationToken;
 
-use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
+use crate::{
+    ActorId, Envelope, EnvelopeBuilder, EventId, Result,
+    internal::{Command, CommandSender},
+};
 
 /// Runtime-provided context for an actor to interact with the system.
 ///
@@ -19,29 +15,26 @@ use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result};
 /// - `stop()`: stop this actor (other actors continue running)
 /// - `stop_runtime()`: initiate shutdown of the entire runtime
 /// - `actor_id()`: retrieve the actor's identity
-/// - `is_alive()`: check whether the actor loop should continue running
+/// - `is_sender_full()`: check channel congestion before sending
 ///
 /// See also: [`Envelope`], [`crate::Meta`], [`crate::Supervisor`].
 #[derive(Clone)]
 pub struct Context<E> {
     actor_id: ActorId,
     sender: Sender<Arc<Envelope<E>>>,
-    alive: Arc<AtomicBool>,
-    cancel_token: Arc<CancellationToken>,
+    cmd_tx: CommandSender,
 }
 
 impl<E> Context<E> {
     pub(crate) fn new(
         actor_id: ActorId,
         sender: Sender<Arc<Envelope<E>>>,
-        alive: Arc<AtomicBool>,
-        cancel_token: Arc<CancellationToken>,
+        cmd_tx: CommandSender,
     ) -> Self {
         Self {
             actor_id,
             sender,
-            alive,
-            cancel_token,
+            cmd_tx,
         }
     }
 
@@ -51,7 +44,7 @@ impl<E> Context<E> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::SendError`](crate::Error::SendError) if the broker
+    /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
     pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result<()> {
         let envelope = builder
@@ -65,7 +58,7 @@ impl<E> Context<E> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::SendError`](crate::Error::SendError) if the broker
+    /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
     pub async fn send_child_event<T: Into<EnvelopeBuilder<E>>>(
         &self,
@@ -93,9 +86,14 @@ impl<E> Context<E> {
     /// Other actors continue running.
     ///
     /// To shut down the entire runtime instead, use [`stop_runtime()`](Self::stop_runtime).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Internal`](crate::Error::Internal) if the command
+    /// channel is closed (runtime already shut down).
     #[inline]
-    pub fn stop(&self) {
-        self.alive.store(false, Ordering::Release);
+    pub fn stop(&self) -> Result {
+        self.cmd_tx.send(Command::StopActor(self.actor_id.clone()))
     }
 
     /// Initiate shutdown of the entire runtime.
@@ -105,9 +103,14 @@ impl<E> Context<E> {
     /// call will return.
     ///
     /// To stop only this actor, use [`stop()`](Self::stop).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Internal`](crate::Error::Internal) if the command
+    /// channel is closed (runtime already shut down).
     #[inline]
-    pub fn stop_runtime(&self) {
-        self.cancel_token.cancel();
+    pub fn stop_runtime(&self) -> Result {
+        self.cmd_tx.send(Command::StopRuntime)
     }
 
     #[inline]
@@ -119,12 +122,6 @@ impl<E> Context<E> {
     #[inline]
     pub fn actor_name(&self) -> &str {
         self.actor_id.as_str()
-    }
-
-    /// Whether the actor is considered alive by the runtime.
-    #[inline]
-    pub fn is_alive(&self) -> bool {
-        self.alive.load(Ordering::Acquire)
     }
 
     /// Returns a future that never completes.
@@ -173,7 +170,6 @@ impl<E> fmt::Debug for Context<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Context")
             .field("actor_id", &self.actor_id)
-            .field("is_alive", &self.is_alive())
             .field("sender", &self.sender)
             .finish()
     }

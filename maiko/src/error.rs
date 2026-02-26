@@ -12,17 +12,14 @@ use crate::{ActorId, Envelope};
 /// need to handle one error type.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
-    #[error("Channel closed: {0}")]
-    SendError(String),
-
-    #[error("Actor task failed: {0}")]
-    ActorJoinError(String),
+    #[error("Mailbox closed")]
+    MailboxClosed,
 
     #[error("Broker has already started.")]
     BrokerAlreadyStarted,
 
-    #[error("The message channel has reached its capacity.")]
-    ChannelIsFull,
+    #[error("The mailbox is full")]
+    MailboxFull,
 
     #[error("Actor '{0}' already exists.")]
     DuplicateActorName(ActorId),
@@ -36,6 +33,9 @@ pub enum Error {
     #[error("Not enough data to build an envelope")]
     EnvelopeBuildError,
 
+    #[error("Internal Maiko error {0}")]
+    Internal(#[source] Arc<dyn std::error::Error + Send + Sync>),
+
     #[cfg(feature = "test-harness")]
     #[error("settle_on condition not met within {0:?}: {1} events recorded")]
     SettleTimeout(std::time::Duration, usize),
@@ -44,12 +44,12 @@ pub enum Error {
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::SendError(a), Self::SendError(b)) => a == b,
-            (Self::ActorJoinError(a), Self::ActorJoinError(b)) => a == b,
+            (Self::MailboxClosed, Self::MailboxClosed) => true,
             (Self::BrokerAlreadyStarted, Self::BrokerAlreadyStarted) => true,
-            (Self::ChannelIsFull, Self::ChannelIsFull) => true,
+            (Self::MailboxFull, Self::MailboxFull) => true,
             (Self::DuplicateActorName(a), Self::DuplicateActorName(b)) => a == b,
             (Self::External(a), Self::External(b)) => Arc::ptr_eq(a, b),
+            (Self::Internal(a), Self::Internal(b)) => Arc::ptr_eq(a, b),
             (Self::IoError(a), Self::IoError(b)) => a == b,
             (Self::EnvelopeBuildError, Self::EnvelopeBuildError) => true,
             #[cfg(feature = "test-harness")]
@@ -62,23 +62,17 @@ impl PartialEq for Error {
 impl Eq for Error {}
 
 impl<E> From<SendError<Arc<Envelope<E>>>> for Error {
-    fn from(e: SendError<Arc<Envelope<E>>>) -> Self {
-        Error::SendError(e.to_string())
+    fn from(_e: SendError<Arc<Envelope<E>>>) -> Self {
+        Error::MailboxClosed
     }
 }
 
 impl<E> From<TrySendError<Arc<Envelope<E>>>> for Error {
     fn from(e: TrySendError<Arc<Envelope<E>>>) -> Self {
         match e {
-            TrySendError::Full(_) => Error::ChannelIsFull,
-            TrySendError::Closed(_) => Error::SendError(e.to_string()),
+            TrySendError::Full(_) => Error::MailboxFull,
+            TrySendError::Closed(_) => Error::MailboxClosed,
         }
-    }
-}
-
-impl From<tokio::task::JoinError> for Error {
-    fn from(e: tokio::task::JoinError) -> Self {
-        Error::ActorJoinError(e.to_string())
     }
 }
 

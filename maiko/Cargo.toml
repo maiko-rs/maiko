@@ -23,7 +23,7 @@ default = ["macros"]
 macros = ["dep:maiko-macros"]
 serde = ["dep:serde", "dep:serde_json"]
 recorder = ["monitoring", "serde"]
-monitoring = []
+monitoring = ["dep:tokio-util"]
 test-harness = ["monitoring"]
 
 [dependencies]
@@ -34,7 +34,7 @@ serde_json = { version = "1.0", optional = true }
 thiserror = "2.0"
 tokio = {version="1.49", features=["macros", "rt", "rt-multi-thread", "time"]}
 tokio-stream = "0.1"
-tokio-util = "0.7"
+tokio-util = { version = "0.7", optional = true }
 tracing = "0.1"
 uuid = { version = "1.20", features = ["v4"] }
 
