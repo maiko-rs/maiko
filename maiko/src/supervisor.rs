@@ -386,6 +386,16 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     }
 }
 
+impl<E: Event, T: Topic<E>> std::fmt::Debug for Supervisor<E, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let actors: Vec<&str> = self.registrations.iter().map(|(id, _)| id.as_str()).collect();
+        f.debug_struct("Supervisor")
+            .field("actors", &actors)
+            .field("tasks", &self.tasks.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl<E: Event, T: Topic<E>> Default for Supervisor<E, T> {
     fn default() -> Self {
         Self::new(Config::default())

@@ -100,6 +100,8 @@ impl<E: fmt::Debug> fmt::Debug for Envelope<E> {
             .field("id", &self.meta.id())
             .field("sender", &self.meta.actor_name())
             .field("event", &self.event)
+            .field("timestamp", &self.meta.timestamp())
+            .field("parent_id", &self.meta.parent_id())
             .finish()
     }
 }

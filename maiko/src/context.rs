@@ -152,6 +152,6 @@ impl<E> fmt::Debug for Context<E> {
         f.debug_struct("Context")
             .field("actor_id", &self.actor_id)
             .field("sender", &self.sender)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
