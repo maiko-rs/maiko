@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     future::IntoFuture,
     sync::Arc,
     time::{Duration, Instant},
@@ -129,6 +130,15 @@ where
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(self.run())
+    }
+}
+
+impl<E: Event, T: Topic<E>, F> fmt::Debug for Expectation<'_, E, T, F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Expectation")
+            .field("harness", &self.harness)
+            .field("timeout", &self.timeout)
+            .finish_non_exhaustive()
     }
 }
 

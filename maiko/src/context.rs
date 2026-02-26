@@ -3,7 +3,7 @@ use std::{fmt, sync::Arc};
 use tokio::sync::mpsc::Sender;
 
 use crate::{
-    ActorId, Envelope, EnvelopeBuilder, EventId, Result,
+    ActorId, Envelope, EventId, IntoEnvelope, Result,
     internal::{Command, CommandSender},
 };
 
@@ -46,11 +46,11 @@ impl<E> Context<E> {
     ///
     /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
-    pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result {
-        let envelope = builder
+    pub async fn send<IE: Into<IntoEnvelope<E>>>(&self, into_envelope: IE) -> Result {
+        let envelope = into_envelope
             .into()
             .with_actor_id(self.actor_id.clone())
-            .build()?;
+            .build();
         self.send_envelope(envelope).await
     }
 
@@ -60,16 +60,16 @@ impl<E> Context<E> {
     ///
     /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
-    pub async fn send_child_event<T: Into<EnvelopeBuilder<E>>>(
+    pub async fn send_child_event<IE: Into<IntoEnvelope<E>>>(
         &self,
-        builder: T,
+        into_envelope: IE,
         parent_id: EventId,
     ) -> Result {
-        let envelope = builder
+        let envelope = into_envelope
             .into()
             .with_actor_id(self.actor_id.clone())
             .with_parent_id(parent_id)
-            .build()?;
+            .build();
         self.send_envelope(envelope).await
     }
 

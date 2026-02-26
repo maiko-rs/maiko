@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt,
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
         Arc,
@@ -176,9 +177,7 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
             }
         }
     }
-}
 
-impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
     fn notify(&mut self, f: impl Fn(&dyn Monitor<E, T>)) {
         for (id, entry) in &self.monitors {
             if entry.paused {
@@ -195,5 +194,20 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
         while let Some(id) = self.ids_to_remove.pop() {
             self.remove_monitor(id);
         }
+    }
+}
+
+impl<E: Event, T: Topic<E>> fmt::Debug for MonitorDispatcher<E, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MonitorDispatcher")
+            .field("receiver", &self.receiver)
+            .field("monitors.len()", &self.monitors.len())
+            .field("last_id", &self.last_id)
+            .field("ids_to_remove", &self.ids_to_remove)
+            .field("is_active", &self.is_active)
+            .field("flush_pending", &self.flush_pending)
+            .field("last_activity", &self.last_activity)
+            .field("is_alive", &self.is_alive)
+            .finish()
     }
 }

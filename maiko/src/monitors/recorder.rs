@@ -17,6 +17,7 @@ use std::path::Path;
 /// let recorder = Recorder::new("events.jsonl")?;
 /// sup.monitors().add(recorder).await;
 /// ```
+#[derive(Debug)]
 pub struct Recorder {
     writer: RefCell<BufWriter<File>>,
 }

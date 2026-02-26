@@ -30,9 +30,6 @@ pub enum Error {
     #[error("IO error: {0}")]
     IoError(#[source] Arc<std::io::Error>),
 
-    #[error("Not enough data to build an envelope")]
-    EnvelopeBuildError,
-
     #[error("Internal Maiko error {0}")]
     Internal(#[source] Arc<dyn std::error::Error + Send + Sync>),
 
@@ -61,7 +58,6 @@ impl PartialEq for Error {
             (Self::External(a), Self::External(b)) => Arc::ptr_eq(a, b),
             (Self::Internal(a), Self::Internal(b)) => Arc::ptr_eq(a, b),
             (Self::IoError(a), Self::IoError(b)) => Arc::ptr_eq(a, b),
-            (Self::EnvelopeBuildError, Self::EnvelopeBuildError) => true,
             #[cfg(feature = "test-harness")]
             (Self::SettleTimeout(a1, a2), Self::SettleTimeout(b1, b2)) => a1 == b1 && a2 == b2,
             _ => false,

@@ -74,3 +74,9 @@ impl ActorConfig {
         self.max_events_per_tick
     }
 }
+
+impl Default for ActorConfig {
+    fn default() -> Self {
+        ActorConfig::new(&Config::default())
+    }
+}

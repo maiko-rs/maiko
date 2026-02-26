@@ -1,4 +1,4 @@
-use crate::{ActorId, Envelope, Error, Event, EventId, Result};
+use crate::{ActorId, Envelope, Event, EventId};
 
 /// Builder for constructing [`Envelope`]s.
 ///
@@ -13,21 +13,21 @@ use crate::{ActorId, Envelope, Error, Event, EventId, Result};
 /// `From<Envelope<E>>` (for pre-built envelopes). The [`Context`](crate::Context)
 /// fills in the actor ID before calling [`build()`](Self::build).
 #[derive(Debug, Clone)]
-pub struct EnvelopeBuilder<E> {
+pub struct IntoEnvelope<E> {
     envelope: Option<Envelope<E>>,
     event: Option<E>,
     actor_id: Option<ActorId>,
     parent_id: Option<EventId>,
 }
 
-impl<E> EnvelopeBuilder<E> {
+impl<E> IntoEnvelope<E> {
     /// Consume the builder and produce an [`Envelope`].
     ///
     /// # Errors
     ///
     /// Returns [`Error::EnvelopeBuildError`] if neither a pre-built envelope
     /// nor an event + actor ID were provided.
-    pub(crate) fn build(self) -> Result<Envelope<E>> {
+    pub(crate) fn build(self) -> Envelope<E> {
         let mut envelope = if let Some(envelope) = self.envelope {
             envelope
         } else if let Some(event) = self.event
@@ -40,14 +40,14 @@ impl<E> EnvelopeBuilder<E> {
                 e
             }
         } else {
-            return Err(Error::EnvelopeBuildError);
+            panic!("build called without actor_id set");
         };
 
         if let Some(parent_id) = self.parent_id {
             envelope = envelope.with_parent_id(parent_id);
         }
 
-        Ok(envelope)
+        envelope
     }
 
     /// Set the sender's actor ID. Called internally by [`Context`](crate::Context).
@@ -63,7 +63,7 @@ impl<E> EnvelopeBuilder<E> {
     }
 }
 
-impl<E> From<Envelope<E>> for EnvelopeBuilder<E> {
+impl<E> From<Envelope<E>> for IntoEnvelope<E> {
     fn from(value: Envelope<E>) -> Self {
         Self {
             envelope: Some(value),
@@ -74,7 +74,7 @@ impl<E> From<Envelope<E>> for EnvelopeBuilder<E> {
     }
 }
 
-impl<E: Event> From<E> for EnvelopeBuilder<E> {
+impl<E: Event> From<E> for IntoEnvelope<E> {
     fn from(event: E) -> Self {
         Self {
             envelope: None,

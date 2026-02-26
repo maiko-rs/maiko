@@ -27,6 +27,7 @@ use crate::{
 /// // Resume all monitors
 /// registry.resume().await;
 /// ```
+#[derive(Debug)]
 pub struct MonitorRegistry<E: Event, T: Topic<E>> {
     dispatcher: Option<MonitorDispatcher<E, T>>,
     dispatcher_handle: Option<tokio::task::JoinHandle<()>>,

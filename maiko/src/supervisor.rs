@@ -10,8 +10,8 @@ use tokio::{
 };
 
 use crate::{
-    Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope,
-    EnvelopeBuilder, Error, Event, Label, Result, Subscribe, Topic,
+    Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope, Error,
+    Event, IntoEnvelope, Label, Result, Subscribe, Topic,
     internal::{ActorController, Broker, Command, CommandSender, Subscriber, Subscription},
 };
 
@@ -236,11 +236,11 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Returns [`Error::MailboxClosed`] if the broker channel is closed.
-    pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result {
-        let envelope = builder
+    pub async fn send<IE: Into<IntoEnvelope<E>>>(&self, into_envelope: IE) -> Result {
+        let envelope = into_envelope
             .into()
             .with_actor_id(self.supervisor_id.clone())
-            .build()?;
+            .build();
         self.sender.send(envelope.into()).await?;
         Ok(())
     }
@@ -388,7 +388,11 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
 impl<E: Event, T: Topic<E>> std::fmt::Debug for Supervisor<E, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let actors: Vec<&str> = self.registrations.iter().map(|(id, _)| id.as_str()).collect();
+        let actors: Vec<&str> = self
+            .registrations
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .collect();
         f.debug_struct("Supervisor")
             .field("actors", &actors)
             .field("tasks", &self.tasks.len())
