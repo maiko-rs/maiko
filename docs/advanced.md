@@ -20,8 +20,8 @@ impl Actor for MyActor {
 
     fn on_error(&self, error: Error) -> Result<()> {
         match &error {
-            Error::SendError(_) => {
-                // Channel closed, probably shutting down
+            Error::MailboxClosed => {
+                // Mailbox closed, probably shutting down
                 eprintln!("Warning: {}", error);
                 Ok(())  // Swallow, continue running
             }
@@ -56,7 +56,6 @@ let mut sup = Supervisor::new(config);
 | `broker_channel_capacity` | 256 | Per-actor channel to broker (stage 1). Producer blocks when its channel is full. |
 | `default_actor_channel_capacity` | 128 | Default mailbox size for new actors (stage 2). |
 | `default_max_events_per_tick` | 10 | Max events an actor processes before yielding. Per-actor override via `ActorBuilder`. |
-| `maintenance_interval` | 10s | How often broker cleans up closed channels |
 | `monitoring_channel_capacity` | 1024 | Buffer size used by "monitoring" feature |
 
 ### Per-Actor Config

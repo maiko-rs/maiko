@@ -3,13 +3,18 @@ use std::sync::Arc;
 use futures_util::{FutureExt, StreamExt, future::join_all, stream::SelectAll};
 use tokio::{
     select,
-    sync::mpsc::{Receiver, error::TrySendError},
+    sync::{
+        broadcast,
+        mpsc::{Receiver, error::TrySendError},
+    },
 };
 use tokio_stream::wrappers::ReceiverStream;
-use tokio_util::sync::CancellationToken;
 
 use super::Subscriber;
-use crate::{ActorId, Config, Envelope, Error, Event, OverflowPolicy, Result, Topic};
+use crate::{
+    ActorId, Envelope, Error, Event, OverflowPolicy, Result, Topic,
+    internal::{Command, CommandSender},
+};
 
 #[cfg(feature = "monitoring")]
 use crate::monitoring::{MonitoringEvent, MonitoringSink};
@@ -19,8 +24,8 @@ type Payload<E> = Arc<Envelope<E>>;
 pub struct Broker<E: Event, T: Topic<E>> {
     senders: SelectAll<ReceiverStream<Payload<E>>>,
     subscribers: Vec<Subscriber<E, T>>,
-    cancel_token: Arc<CancellationToken>,
-    config: Arc<Config>,
+    command_tx: CommandSender,
+    command_rx: broadcast::Receiver<Command>,
 
     #[cfg(feature = "monitoring")]
     monitoring: MonitoringSink<E, T>,
@@ -28,15 +33,14 @@ pub struct Broker<E: Event, T: Topic<E>> {
 
 impl<E: Event, T: Topic<E>> Broker<E, T> {
     pub fn new(
-        cancel_token: Arc<CancellationToken>,
-        config: Arc<Config>,
+        command_tx: CommandSender,
         #[cfg(feature = "monitoring")] monitoring: MonitoringSink<E, T>,
     ) -> Broker<E, T> {
         Broker {
             senders: SelectAll::new(),
             subscribers: Vec::new(),
-            cancel_token,
-            config,
+            command_rx: command_tx.as_ref().subscribe(),
+            command_tx,
             #[cfg(feature = "monitoring")]
             monitoring,
         }
@@ -59,10 +63,9 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         self.senders.push(ReceiverStream::new(receiver));
     }
 
-    async fn send_event(&mut self, e: &Arc<Envelope<E>>) -> Result<Option<Vec<ActorId>>> {
+    async fn send_event(&mut self, e: &Arc<Envelope<E>>) -> Result {
         let topic = T::from_event(e.event());
         let mut blocked = None;
-        let mut to_be_closed = None;
 
         #[cfg(feature = "monitoring")]
         let (is_recording, topic_for_monitor) = {
@@ -104,10 +107,8 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
                     );
                     match policy {
                         OverflowPolicy::Fail => {
-                            tracing::info!(actor=%subscriber.actor_id.as_str(), event_id=%e.id(), "closing channel due to OverflowPolicy Fail");
-                            to_be_closed
-                                .get_or_insert(Vec::new())
-                                .push(subscriber.actor_id.clone());
+                            self.command_tx
+                                .send(Command::StopActor(subscriber.actor_id.clone()))?;
                             continue;
                         }
                         OverflowPolicy::Drop => {
@@ -120,8 +121,8 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
                     };
                 }
                 Err(TrySendError::Closed(_)) => {
-                    // Channel is closed, will be cleaned up in the next maintenance cycle
-                    tracing::warn!(actor=%subscriber.actor_id.as_str(), "subscriber channel closed, will be removed in cleanup");
+                    // Channel is closed — subscriber already stopped
+                    tracing::warn!(actor=%subscriber.actor_id.as_str(), "subscriber channel closed");
                 }
             }
         }
@@ -130,36 +131,39 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
             join_all(b).await;
         }
 
-        Ok(to_be_closed)
+        Ok(())
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        let mut cleanup_interval = tokio::time::interval(self.config.maintenance_interval());
+        let mut res = Ok(());
         loop {
             select! {
                 biased;
-                _ = self.cancel_token.cancelled() => break,
-                _ = cleanup_interval.tick() => {
-                    self.cleanup();
-                }
-                Some(event) = self.senders.next() => {
-                    let tbc = self.send_event(&event).await?;
-
-                    // Close channels for subscribers that overflown with Fail policy
-                    if let Some(to_be_closed) = tbc {
-                        self.subscribers.retain(|s|
-                            !to_be_closed.contains(&s.actor_id)
-                        );
+                cmd_res = self.command_rx.recv() => match cmd_res {
+                    Ok(res) => match res {
+                        Command::StopBroker => break,
+                        Command::StopActor(id) => self.remove_subscriber(id),
+                        _ => {}
                     }
+                    Err(e) => {
+                        res = Err(Error::Internal(Arc::new(e)));
+                        break;
+                    }
+                },
+                maybe_event = self.senders.next() => {
+                    let Some(event) = maybe_event else {
+                        break;
+                    };
+                    self.send_event(&event).await?;
                 },
             }
         }
         self.shutdown().await;
-        Ok(())
+        res
     }
 
-    fn cleanup(&mut self) {
-        self.subscribers.retain(|s| !s.is_closed());
+    fn remove_subscriber(&mut self, actor_id: ActorId) {
+        self.subscribers.retain(|s| s.actor_id != actor_id);
     }
 
     async fn shutdown(&mut self) {
@@ -239,10 +243,12 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Event, Topic, internal::Subscription, internal::broker::Broker};
+    use crate::{
+        Event, Topic,
+        internal::{CommandSender, Subscription, broker::Broker},
+    };
     use std::{collections::HashSet, sync::Arc};
-    use tokio::sync::mpsc;
-    use tokio_util::sync::CancellationToken;
+    use tokio::sync::{broadcast, mpsc};
 
     #[derive(Debug, Clone)]
     struct TestEvent {
@@ -271,7 +277,7 @@ mod tests {
 
         let (tx, rx) = mpsc::channel(10);
         let config = Arc::new(crate::Config::default());
-        let cancel_token = Arc::new(CancellationToken::new());
+        let (command_tx, _) = broadcast::channel(10);
 
         #[cfg(feature = "monitoring")]
         let monitoring = {
@@ -280,8 +286,7 @@ mod tests {
         };
 
         let mut broker = Broker::<TestEvent, TestTopic>::new(
-            cancel_token,
-            config,
+            CommandSender::from(command_tx),
             #[cfg(feature = "monitoring")]
             monitoring,
         );

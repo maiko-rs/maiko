@@ -4,7 +4,8 @@
 
 ### Added
 
-- `Context::stop_runtime()` to shut down the entire runtime from within an actor
+- `Context::stop_runtime()` to shut down the entire runtime from within an actor ([#92])
+- Internal broadcast command channel for unified control flow ([#92])
 - `# Errors` documentation on all public `Result`-returning methods
 - `EventId` newtype struct (was `type EventId = u128`)
 - `EnvelopeBuilder<E>` for flexible envelope construction
@@ -30,9 +31,12 @@
 
 - **Breaking:** `Context::send_with_correlation()` (use `send_child_event()` instead)
 - **Breaking:** `Deref` impls on `Envelope` (use `event()`) and `ActorId` (use `as_str()`)
+- **Breaking:** `Context::is_alive()` removed (internal to actor controller)
+- **Breaking:** `Config::maintenance_interval` removed (broker cleanup is now reactive via commands)
 - **Breaking:** Deprecated methods removed from `Config`
 
 [#43]: https://github.com/maiko-rs/maiko/issues/43
+[#92]: https://github.com/maiko-rs/maiko/issues/92
 
 ---
 
