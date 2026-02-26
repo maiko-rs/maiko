@@ -20,8 +20,8 @@ impl Actor for MyActor {
 
     fn on_error(&self, error: Error) -> Result<()> {
         match &error {
-            Error::SendError(_) => {
-                // Channel closed, probably shutting down
+            Error::MailboxClosed => {
+                // Mailbox closed, probably shutting down
                 eprintln!("Warning: {}", error);
                 Ok(())  // Swallow, continue running
             }

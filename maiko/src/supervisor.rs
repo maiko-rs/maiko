@@ -12,7 +12,7 @@ use tokio::{
 use crate::{
     Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope,
     EnvelopeBuilder, Error, Event, Label, Result, Subscribe, Topic,
-    internal::{ActorController, Broker, Command, Subscriber, Subscription},
+    internal::{ActorController, Broker, Command, CommandSender, Subscriber, Subscription},
 };
 
 #[cfg(feature = "monitoring")]
@@ -54,7 +54,8 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
     supervisor_id: ActorId,
     registrations: Vec<(ActorId, Subscription<T>)>,
 
-    cmd_sender: broadcast::Sender<Command>,
+    cmd_tx: CommandSender,
+    cmd_rx: broadcast::Receiver<Command>,
 
     #[cfg(feature = "monitoring")]
     monitoring: MonitorRegistry<E, T>,
@@ -75,10 +76,11 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
         let supervisor_id = ActorId::new("supervisor");
 
-        let (cmd_sender, _) = broadcast::channel(32);
+        let (cmd_tx, cmd_rx) = broadcast::channel(32);
+        let cmd_tx = CommandSender::from(cmd_tx);
 
         let mut broker = Broker::new(
-            cmd_sender.clone(),
+            cmd_tx.clone(),
             #[cfg(feature = "monitoring")]
             monitoring.sink(),
         );
@@ -92,7 +94,8 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             start_notifier: Arc::new(Notify::new()),
             supervisor_id,
             registrations: Vec::new(),
-            cmd_sender,
+            cmd_tx,
+            cmd_rx,
 
             #[cfg(feature = "monitoring")]
             monitoring,
@@ -200,7 +203,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             receiver: rx,
             ctx,
             max_events_per_tick: config.max_events_per_tick(),
-            command_rx: self.cmd_sender.subscribe(),
+            command_rx: self.cmd_tx.as_ref().subscribe(),
 
             #[cfg(feature = "monitoring")]
             monitoring: self.monitoring.sink(),
@@ -225,15 +228,15 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         name: &str,
         sender: Sender<Arc<Envelope<E>>>,
     ) -> Context<E> {
-        Context::<E>::new(ActorId::new(name), sender, self.cmd_sender.clone())
+        Context::<E>::new(ActorId::new(name), sender, self.cmd_tx.clone())
     }
 
     /// Emit an event into the broker from the supervisor.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::SendError`] if the broker channel is closed.
-    pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result<()> {
+    /// Returns [`Error::MailboxClosed`] if the broker channel is closed.
+    pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result {
         let envelope = builder
             .into()
             .with_actor_id(self.supervisor_id.clone())
@@ -266,28 +269,45 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         Ok(())
     }
 
+    async fn join_next_task(tasks: &mut JoinSet<Result>) -> Option<Result> {
+        tasks.join_next().await.map(|res| match res {
+            Err(e) => Err(Error::Internal(Arc::new(e))),
+            Ok(Err(e)) => Err(e),
+            _ => Ok(()),
+        })
+    }
+
     /// Waits until at least one of the actor tasks completes then
     /// triggers a shutdown if not already requested.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::ActorJoinError`] if an actor task panics.
+    /// Returns [`Error::Internal`] if an actor task panics.
     /// Propagates any error returned by [`stop()`](Self::stop).
     pub async fn join(mut self) -> Result<()> {
-        let mut cmd_rx = self.cmd_sender.subscribe();
+        let mut res = Ok(());
+        let tasks = &mut self.tasks;
         loop {
             select! {
-                Ok(cmd) = cmd_rx.recv() => if cmd == Command::StopRuntime { break; },
-                maybe_res = self.tasks.join_next() => {
+                maybe_cmd = self.cmd_rx.recv() => match maybe_cmd {
+                    Ok(Command::StopRuntime) => break,
+                    Err(err) => return Err(Error::Internal(Arc::new(err))),
+                    _ => {}
+                },
+                maybe_res = Self::join_next_task(tasks) => {
                     match maybe_res {
-                        Some(res) => res??,
-                        None => break
+                        Some(Err(e)) => {
+                            res = Err(e);
+                            break;
+                        }
+                        None => break,
+                        _ => {}
                     }
                 }
             }
         }
         self.stop().await?;
-        Ok(())
+        res
     }
 
     /// Request a graceful shutdown, then await all actor tasks.
@@ -300,12 +320,16 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::ActorJoinError`] if an actor task panics during shutdown.
+    /// Returns [`Error::Internal`] if an actor task panics during shutdown.
     pub async fn stop(mut self) -> Result<()> {
         use tokio::time::*;
+
+        let tasks = &mut self.tasks;
         let start = Instant::now();
         let timeout = Duration::from_millis(10);
         let max = self.sender.max_capacity();
+
+        let mut first_err: Option<Error> = None;
 
         // 1. Wait for the main channel to drain
         while start.elapsed() < timeout {
@@ -316,19 +340,37 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         }
 
         // 2. Wait for the broker to shutdown gracefully
-        self.cmd_sender.send(Command::StopBroker)?;
-        let _ = self.broker.lock().await;
+        match self.cmd_tx.send(Command::StopBroker) {
+            Ok(_) => {
+                let _ = self.broker.lock().await;
+            }
+            Err(e) => {
+                first_err.get_or_insert(e);
+            }
+        }
 
         // 3. Stop the actors
-        self.cmd_sender.send(Command::StopRuntime)?;
-        while let Some(res) = self.tasks.join_next().await {
-            res??;
+        match self.cmd_tx.send(Command::StopRuntime) {
+            Ok(_) => {
+                while let Some(res) = Self::join_next_task(tasks).await {
+                    if let Err(e) = res {
+                        first_err.get_or_insert(e);
+                    }
+                }
+            }
+            Err(e) => {
+                first_err.get_or_insert(e);
+                tasks.abort_all();
+            }
         }
 
         #[cfg(feature = "monitoring")]
         self.monitoring.stop().await;
 
-        Ok(())
+        match first_err {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
     }
 
     /// Returns the supervisor's configuration.
@@ -416,9 +458,9 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
 
 impl<E: Event, T: Topic<E>> Drop for Supervisor<E, T> {
     fn drop(&mut self) {
-        if self.cmd_sender.receiver_count() > 0 {
-            let _ = self.cmd_sender.send(Command::StopRuntime);
-            let _ = self.cmd_sender.send(Command::StopBroker);
+        if self.cmd_tx.as_ref().receiver_count() > 0 {
+            let _ = self.cmd_tx.send(Command::StopRuntime);
+            let _ = self.cmd_tx.send(Command::StopBroker);
         }
         #[cfg(feature = "monitoring")]
         self.monitoring.cancel();

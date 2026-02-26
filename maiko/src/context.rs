@@ -1,8 +1,11 @@
 use std::{fmt, sync::Arc};
 
-use tokio::sync::{broadcast, mpsc::Sender};
+use tokio::sync::mpsc::Sender;
 
-use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result, internal::Command};
+use crate::{
+    ActorId, Envelope, EnvelopeBuilder, EventId, Result,
+    internal::{Command, CommandSender},
+};
 
 /// Runtime-provided context for an actor to interact with the system.
 ///
@@ -19,19 +22,19 @@ use crate::{ActorId, Envelope, EnvelopeBuilder, EventId, Result, internal::Comma
 pub struct Context<E> {
     actor_id: ActorId,
     sender: Sender<Arc<Envelope<E>>>,
-    cmd_sender: broadcast::Sender<Command>,
+    cmd_tx: CommandSender,
 }
 
 impl<E> Context<E> {
     pub(crate) fn new(
         actor_id: ActorId,
         sender: Sender<Arc<Envelope<E>>>,
-        cmd_sender: broadcast::Sender<Command>,
+        cmd_tx: CommandSender,
     ) -> Self {
         Self {
             actor_id,
             sender,
-            cmd_sender,
+            cmd_tx,
         }
     }
 
@@ -41,7 +44,7 @@ impl<E> Context<E> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::SendError`](crate::Error::SendError) if the broker
+    /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
     pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result<()> {
         let envelope = builder
@@ -55,7 +58,7 @@ impl<E> Context<E> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::SendError`](crate::Error::SendError) if the broker
+    /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
     pub async fn send_child_event<T: Into<EnvelopeBuilder<E>>>(
         &self,
@@ -86,13 +89,11 @@ impl<E> Context<E> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::SendError`](crate::Error::SendError) if the command
+    /// Returns [`Error::Internal`](crate::Error::Internal) if the command
     /// channel is closed (runtime already shut down).
     #[inline]
     pub fn stop(&self) -> Result {
-        self.cmd_sender
-            .send(Command::StopActor(self.actor_id.clone()))?;
-        Ok(())
+        self.cmd_tx.send(Command::StopActor(self.actor_id.clone()))
     }
 
     /// Initiate shutdown of the entire runtime.
@@ -105,12 +106,11 @@ impl<E> Context<E> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::SendError`](crate::Error::SendError) if the command
+    /// Returns [`Error::Internal`](crate::Error::Internal) if the command
     /// channel is closed (runtime already shut down).
     #[inline]
     pub fn stop_runtime(&self) -> Result {
-        self.cmd_sender.send(Command::StopRuntime)?;
-        Ok(())
+        self.cmd_tx.send(Command::StopRuntime)
     }
 
     #[inline]

@@ -6,7 +6,7 @@ use tokio::{
 };
 
 use crate::{
-    Actor, Context, Envelope, Result, StepAction, Topic,
+    Actor, Context, Envelope, Error, Result, StepAction, Topic,
     internal::{Command, StepHandler, StepPause},
 };
 
@@ -34,17 +34,16 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
             select! {
                 biased;
 
-                Ok(cmd) = self.command_rx.recv() => match cmd {
-                    Command::StopActor(ref id) if id == self.ctx.actor_id() => break,
-                    Command::StopRuntime => break,
-                    _ => {}
+                cmd_res = self.command_rx.recv() => match cmd_res {
+                    Ok(cmd) => match cmd {
+                        Command::StopActor(ref id) if id == self.ctx.actor_id() => break,
+                        Command::StopRuntime => break,
+                        _ => {}
+                    }
+                    Err(e) => return Err(Error::Internal(Arc::new(e)))
                 },
 
-                maybe_event = self.receiver.recv() => {
-                    let Some(event) = maybe_event else {
-                        break;
-                    };
-
+                Some(event) = self.receiver.recv() => {
                     #[cfg(feature = "monitoring")]
                     let topic = {
                         let topic = Arc::new(T::from_event(event.event()));

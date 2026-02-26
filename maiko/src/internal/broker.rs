@@ -11,7 +11,10 @@ use tokio::{
 use tokio_stream::wrappers::ReceiverStream;
 
 use super::Subscriber;
-use crate::{ActorId, Envelope, Error, Event, OverflowPolicy, Result, Topic, internal::Command};
+use crate::{
+    ActorId, Envelope, Error, Event, OverflowPolicy, Result, Topic,
+    internal::{Command, CommandSender},
+};
 
 #[cfg(feature = "monitoring")]
 use crate::monitoring::{MonitoringEvent, MonitoringSink};
@@ -21,7 +24,7 @@ type Payload<E> = Arc<Envelope<E>>;
 pub struct Broker<E: Event, T: Topic<E>> {
     senders: SelectAll<ReceiverStream<Payload<E>>>,
     subscribers: Vec<Subscriber<E, T>>,
-    command_tx: broadcast::Sender<Command>,
+    command_tx: CommandSender,
     command_rx: broadcast::Receiver<Command>,
 
     #[cfg(feature = "monitoring")]
@@ -30,13 +33,13 @@ pub struct Broker<E: Event, T: Topic<E>> {
 
 impl<E: Event, T: Topic<E>> Broker<E, T> {
     pub fn new(
-        command_tx: broadcast::Sender<Command>,
+        command_tx: CommandSender,
         #[cfg(feature = "monitoring")] monitoring: MonitoringSink<E, T>,
     ) -> Broker<E, T> {
         Broker {
             senders: SelectAll::new(),
             subscribers: Vec::new(),
-            command_rx: command_tx.subscribe(),
+            command_rx: command_tx.as_ref().subscribe(),
             command_tx,
             #[cfg(feature = "monitoring")]
             monitoring,
@@ -132,21 +135,31 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
     }
 
     pub async fn run(&mut self) -> Result<()> {
+        let mut res = Ok(());
         loop {
             select! {
                 biased;
-                Ok(cmd) = self.command_rx.recv() => match cmd {
-                    Command::StopBroker => break,
-                    Command::StopActor(id) => self.remove_subscriber(id),
-                    _ => {}
+                cmd_res = self.command_rx.recv() => match cmd_res {
+                    Ok(res) => match res {
+                        Command::StopBroker => break,
+                        Command::StopActor(id) => self.remove_subscriber(id),
+                        _ => {}
+                    }
+                    Err(e) => {
+                        res = Err(Error::Internal(Arc::new(e)));
+                        break;
+                    }
                 },
-                Some(event) = self.senders.next() => {
+                maybe_event = self.senders.next() => {
+                    let Some(event) = maybe_event else {
+                        break;
+                    };
                     self.send_event(&event).await?;
                 },
             }
         }
         self.shutdown().await;
-        Ok(())
+        res
     }
 
     fn remove_subscriber(&mut self, actor_id: ActorId) {
@@ -230,7 +243,10 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Event, Topic, internal::Subscription, internal::broker::Broker};
+    use crate::{
+        Event, Topic,
+        internal::{CommandSender, Subscription, broker::Broker},
+    };
     use std::{collections::HashSet, sync::Arc};
     use tokio::sync::{broadcast, mpsc};
 
@@ -270,7 +286,7 @@ mod tests {
         };
 
         let mut broker = Broker::<TestEvent, TestTopic>::new(
-            command_tx,
+            CommandSender::from(command_tx),
             #[cfg(feature = "monitoring")]
             monitoring,
         );
