@@ -157,4 +157,4 @@ Actors are named domain entities with responsibility boundaries, not anonymous d
 
 The common case reads like intent, not like machinery. `handle_event` takes one argument (the thing that happened). Context through `self.ctx`. You don't need to understand the runtime to write your first actor.
 
-Configuration follows the same principle: `Config::default()` is safe. Tuning is discoverable, not required. Sensible defaults for 80% of cases, clear escape hatches for the rest.
+Configuration follows the same principle: `SupervisorConfig::default()` is safe. Tuning is discoverable, not required. Sensible defaults for 80% of cases, clear escape hatches for the rest.

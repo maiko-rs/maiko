@@ -34,7 +34,7 @@ For detailed comparisons, use cases, and when to choose alternatives, see **[Why
 | 0.1.0 | Core actor model, basic routing |
 | 0.2.0 | Monitoring, test harness, API refinements |
 | 0.2.5 | Backpressure, per-actor configuration, overflow policies |
-| 0.3.0 (planned) | Supervision, dynamic actors, improved error handling |
+| 0.3.0 | API maturation, error handling, naming conventions |
 | 1.0.0 (future) | API stability guarantee |
 
 **What this means**:
@@ -60,7 +60,7 @@ The harness lets you:
 
 ```rust
 #[tokio::test]
-async fn test_temperature_alert() -> Result<()> {
+async fn test_temperature_alert() -> Result {
     let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
 
     let sensor = sup.add_actor("sensor", |ctx| TempSensor::new(ctx), Subscribe::none())?;

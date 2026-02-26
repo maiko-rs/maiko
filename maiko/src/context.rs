@@ -3,7 +3,7 @@ use std::{fmt, sync::Arc};
 use tokio::sync::mpsc::Sender;
 
 use crate::{
-    ActorId, Envelope, EnvelopeBuilder, EventId, Result,
+    ActorId, Envelope, EventId, IntoEnvelope, Result,
     internal::{Command, CommandSender},
 };
 
@@ -46,11 +46,11 @@ impl<E> Context<E> {
     ///
     /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
-    pub async fn send<T: Into<EnvelopeBuilder<E>>>(&self, builder: T) -> Result<()> {
-        let envelope = builder
+    pub async fn send<IE: Into<IntoEnvelope<E>>>(&self, into_envelope: IE) -> Result {
+        let envelope = into_envelope
             .into()
             .with_actor_id(self.actor_id.clone())
-            .build()?;
+            .build();
         self.send_envelope(envelope).await
     }
 
@@ -60,21 +60,21 @@ impl<E> Context<E> {
     ///
     /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the broker
     /// channel is closed.
-    pub async fn send_child_event<T: Into<EnvelopeBuilder<E>>>(
+    pub async fn send_child_event<IE: Into<IntoEnvelope<E>>>(
         &self,
-        builder: T,
+        into_envelope: IE,
         parent_id: EventId,
-    ) -> Result<()> {
-        let envelope = builder
+    ) -> Result {
+        let envelope = into_envelope
             .into()
             .with_actor_id(self.actor_id.clone())
-            .build()?
-            .with_parent_id(parent_id);
+            .with_parent_id(parent_id)
+            .build();
         self.send_envelope(envelope).await
     }
 
     #[inline]
-    async fn send_envelope<T: Into<Envelope<E>>>(&self, envelope: T) -> Result<()> {
+    async fn send_envelope<T: Into<Envelope<E>>>(&self, envelope: T) -> Result {
         self.sender.send(Arc::new(envelope.into())).await?;
         Ok(())
     }
@@ -113,6 +113,7 @@ impl<E> Context<E> {
         self.cmd_tx.send(Command::StopRuntime)
     }
 
+    /// The identity of this actor.
     #[inline]
     pub fn actor_id(&self) -> &ActorId {
         &self.actor_id
@@ -122,26 +123,6 @@ impl<E> Context<E> {
     #[inline]
     pub fn actor_name(&self) -> &str {
         self.actor_id.as_str()
-    }
-
-    /// Returns a future that never completes.
-    ///
-    /// **Note:** This method is largely obsolete. The default `step()` implementation
-    /// now returns `StepAction::Never`, which disables stepping entirely. You only need
-    /// `pending()` if you want to block inside a custom `step()` implementation.
-    ///
-    /// ```rust,ignore
-    /// // Prefer this (default behavior):
-    /// async fn step(&mut self) -> Result<StepAction> {
-    ///     Ok(StepAction::Never)
-    /// }
-    ///
-    /// // Or simply don't implement step() at all - it defaults to Never
-    /// ```
-    #[inline]
-    pub async fn pending(&self) -> Result<()> {
-        std::future::pending::<()>().await;
-        Ok(())
     }
 
     /// Whether this actor's channel to the broker has no remaining capacity.
@@ -171,6 +152,6 @@ impl<E> fmt::Debug for Context<E> {
         f.debug_struct("Context")
             .field("actor_id", &self.actor_id)
             .field("sender", &self.sender)
-            .finish()
+            .finish_non_exhaustive()
     }
 }

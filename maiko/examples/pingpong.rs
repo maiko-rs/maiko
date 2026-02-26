@@ -46,7 +46,7 @@ impl Actor for PingPong {
     type Event = PingPongEvent;
 
     /// Handle incoming events by responding with the opposite event.
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         println!(
             "Event: {:?} received by {} actor",
             envelope.event(),
@@ -74,19 +74,19 @@ struct Counter {
 impl Actor for Counter {
     type Event = PingPongEvent;
 
-    async fn handle_event(&mut self, _envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, _envelope: &Envelope<Self::Event>) -> Result {
         self.count += 1;
         Ok(())
     }
 
-    async fn on_shutdown(&mut self) -> Result<()> {
+    async fn on_shutdown(&mut self) -> Result {
         println!("Total events processed: {}", self.count);
         Ok(())
     }
 }
 
 #[tokio::main]
-pub async fn main() -> Result<()> {
+pub async fn main() -> Result {
     // Create a supervisor with PingPongEvent as both the event and topic type
     let mut sup = Supervisor::<PingPongEvent, PingPongEvent>::default();
 

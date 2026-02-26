@@ -12,7 +12,7 @@ struct Greeter;
 impl Actor for Greeter {
     type Event = MyEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         match envelope.event() {
             MyEvent::Hello(name) => {
                 println!("Hello, {}! (from {})", name, envelope.meta().actor_name());
@@ -23,7 +23,7 @@ impl Actor for Greeter {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result {
     let mut sup = Supervisor::<MyEvent>::default();
 
     // Add actor and subscribe it to all topics

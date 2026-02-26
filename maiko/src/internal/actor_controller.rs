@@ -27,7 +27,7 @@ pub(crate) struct ActorController<A: Actor, T: Topic<A::Event>> {
 }
 
 impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result {
         self.actor.on_start().await?;
         let mut step_handler = StepHandler::default();
         loop {
@@ -40,7 +40,7 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
                         Command::StopRuntime => break,
                         _ => {}
                     }
-                    Err(e) => return Err(Error::Internal(Arc::new(e)))
+                    Err(e) => return Err(Error::internal(e))
                 },
 
                 Some(event) = self.receiver.recv() => {
@@ -116,7 +116,7 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
     }
 
     #[inline]
-    fn handle_error<R>(&self, result: Result<R>) -> Result<()> {
+    fn handle_error<R>(&mut self, result: Result<R>) -> Result {
         if let Err(e) = result {
             #[cfg(feature = "monitoring")]
             self.notify_error(&e);

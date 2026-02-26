@@ -17,12 +17,13 @@ pub struct EventId(u128);
 impl EventId {
     /// Generate a new random event ID (UUID v4).
     #[must_use]
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self(Uuid::new_v4().as_u128())
     }
 
     /// Returns the raw `u128` value.
-    pub fn value(&self) -> u128 {
+    pub fn as_u128(&self) -> u128 {
         self.0
     }
 
@@ -47,11 +48,5 @@ impl From<EventId> for u128 {
 impl fmt::Display for EventId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_uuid())
-    }
-}
-
-impl Default for EventId {
-    fn default() -> Self {
-        EventId::new()
     }
 }

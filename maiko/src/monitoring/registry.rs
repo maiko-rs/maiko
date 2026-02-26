@@ -1,10 +1,9 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
 use tokio::sync::oneshot;
-use tokio_util::sync::CancellationToken;
 
 use crate::{
-    Config, Event, Topic,
+    Event, SupervisorConfig, Topic,
     monitoring::{
         Monitor, MonitorCommand, MonitorDispatcher, MonitorHandle, MonitorId, MonitoringSink,
     },
@@ -28,8 +27,8 @@ use crate::{
 /// // Resume all monitors
 /// registry.resume().await;
 /// ```
+#[derive(Debug)]
 pub struct MonitorRegistry<E: Event, T: Topic<E>> {
-    cancel_token: Arc<CancellationToken>,
     dispatcher: Option<MonitorDispatcher<E, T>>,
     dispatcher_handle: Option<tokio::task::JoinHandle<()>>,
     pub(crate) sender: tokio::sync::mpsc::Sender<MonitorCommand<E, T>>,
@@ -37,13 +36,11 @@ pub struct MonitorRegistry<E: Event, T: Topic<E>> {
 }
 
 impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
-    pub(crate) fn new(config: &Config) -> Self {
-        let cancel_token = Arc::new(CancellationToken::new());
+    pub(crate) fn new(config: &SupervisorConfig) -> Self {
         let (tx, rx) = tokio::sync::mpsc::channel(config.monitoring_channel_capacity());
         let is_active = Arc::new(AtomicBool::new(false));
-        let dispatcher = MonitorDispatcher::new(rx, cancel_token.clone(), is_active.clone());
+        let dispatcher = MonitorDispatcher::new(rx, is_active.clone());
         Self {
-            cancel_token,
             sender: tx,
             dispatcher: Some(dispatcher),
             dispatcher_handle: None,
@@ -63,14 +60,18 @@ impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
     }
 
     pub(crate) async fn stop(&mut self) {
-        self.cancel();
-        if let Some(handle) = self.dispatcher_handle.take() {
-            let _ = handle.await;
+        match (
+            self.sender.send(MonitorCommand::Shutdown).await,
+            self.dispatcher_handle.take(),
+        ) {
+            (Ok(_), Some(handle)) => {
+                let _ = handle.await;
+            }
+            (Err(_), Some(handle)) => {
+                handle.abort();
+            }
+            _ => {}
         }
-    }
-
-    pub(crate) fn cancel(&self) {
-        self.cancel_token.cancel();
     }
 
     pub(crate) fn sink(&self) -> MonitoringSink<E, T> {
@@ -114,5 +115,13 @@ impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
     /// Resume all registered monitors.
     pub async fn resume(&self) {
         let _ = self.sender.send(MonitorCommand::ResumeAll).await;
+    }
+}
+
+impl<E: Event, T: Topic<E>> Drop for MonitorRegistry<E, T> {
+    fn drop(&mut self) {
+        if let Some(handle) = self.dispatcher_handle.take() {
+            handle.abort();
+        }
     }
 }

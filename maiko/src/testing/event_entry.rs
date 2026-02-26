@@ -98,7 +98,7 @@ mod tests {
     fn id_returns_envelope_id() {
         let (entry, _, _) = make_entry();
         // ID should be non-zero (generated)
-        assert_ne!(entry.id().value(), 0);
+        assert_ne!(entry.id().as_u128(), 0);
     }
 
     #[test]

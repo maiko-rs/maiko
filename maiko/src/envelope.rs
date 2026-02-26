@@ -57,11 +57,13 @@ impl<E> Envelope<E> {
         &self.event
     }
 
+    /// Returns the event metadata (sender, timestamp, parent ID).
     #[inline]
     pub fn meta(&self) -> &Meta {
         &self.meta
     }
 
+    /// Shorthand for `self.meta().id()`.
     #[inline]
     pub fn id(&self) -> EventId {
         self.meta.id()
@@ -98,6 +100,8 @@ impl<E: fmt::Debug> fmt::Debug for Envelope<E> {
             .field("id", &self.meta.id())
             .field("sender", &self.meta.actor_name())
             .field("event", &self.event)
+            .field("timestamp", &self.meta.timestamp())
+            .field("parent_id", &self.meta.parent_id())
             .finish()
     }
 }

@@ -14,7 +14,7 @@ use crate::{
 /// actor construction from topic subscription.
 ///
 /// Defaults to no topic subscriptions and channel capacity inherited from the
-/// global [`Config`](crate::Config).
+/// global [`SupervisorConfig`](crate::SupervisorConfig).
 ///
 /// # Examples
 ///
@@ -33,6 +33,7 @@ use crate::{
 /// ```
 ///
 /// [`Supervisor::build_actor`]: crate::Supervisor::build_actor
+#[must_use = "actor is not registered until .build() is called"]
 pub struct ActorBuilder<'a, E: Event, T: Topic<E>, A: Actor<Event = E>> {
     supervisor: &'a mut Supervisor<E, T>,
     actor: A,
