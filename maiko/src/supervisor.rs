@@ -10,8 +10,8 @@ use tokio::{
 };
 
 use crate::{
-    Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope,
-    EnvelopeBuilder, Error, Event, Label, Result, Subscribe, Topic,
+    Actor, ActorBuilder, ActorConfig, ActorId, Context, DefaultTopic, Envelope, Error,
+    Event, IntoEnvelope, Label, Result, Subscribe, SupervisorConfig, Topic,
     internal::{ActorController, Broker, Command, CommandSender, Subscriber, Subscription},
 };
 
@@ -46,10 +46,10 @@ use crate::monitoring::MonitorRegistry;
 ///
 /// See also: [`Actor`], [`Context`], [`Topic`].
 pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
-    config: Arc<Config>,
+    config: Arc<SupervisorConfig>,
     broker: Arc<Mutex<Broker<E, T>>>,
     pub(crate) sender: Sender<Arc<Envelope<E>>>,
-    tasks: JoinSet<Result<()>>,
+    tasks: JoinSet<Result>,
     start_notifier: Arc<Notify>,
     supervisor_id: ActorId,
     registrations: Vec<(ActorId, Subscription<T>)>,
@@ -63,7 +63,7 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
 
 impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// Create a new supervisor with the given runtime configuration.
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: SupervisorConfig) -> Self {
         let config = Arc::new(config);
         let (tx, rx) = channel::<Arc<Envelope<E>>>(config.broker_channel_capacity());
 
@@ -236,11 +236,11 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Returns [`Error::MailboxClosed`] if the broker channel is closed.
-    pub async fn send<B: Into<EnvelopeBuilder<E>>>(&self, builder: B) -> Result {
-        let envelope = builder
+    pub async fn send<IE: Into<IntoEnvelope<E>>>(&self, into_envelope: IE) -> Result {
+        let envelope = into_envelope
             .into()
             .with_actor_id(self.supervisor_id.clone())
-            .build()?;
+            .build();
         self.sender.send(envelope.into()).await?;
         Ok(())
     }
@@ -251,7 +251,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Propagates any error from [`start()`](Self::start) or [`join()`](Self::join).
-    pub async fn run(mut self) -> Result<()> {
+    pub async fn run(mut self) -> Result {
         self.start().await?;
         self.join().await
     }
@@ -261,7 +261,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Currently infallible, but returns `Result` for forward compatibility.
-    pub async fn start(&mut self) -> Result<()> {
+    pub async fn start(&mut self) -> Result {
         let broker = self.broker.clone();
         self.tasks
             .spawn(async move { broker.lock().await.run().await });
@@ -271,7 +271,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
 
     async fn join_next_task(tasks: &mut JoinSet<Result>) -> Option<Result> {
         tasks.join_next().await.map(|res| match res {
-            Err(e) => Err(Error::Internal(Arc::new(e))),
+            Err(e) => Err(Error::internal(e)),
             Ok(Err(e)) => Err(e),
             _ => Ok(()),
         })
@@ -284,14 +284,14 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// Returns [`Error::Internal`] if an actor task panics.
     /// Propagates any error returned by [`stop()`](Self::stop).
-    pub async fn join(mut self) -> Result<()> {
+    pub async fn join(mut self) -> Result {
         let mut res = Ok(());
         let tasks = &mut self.tasks;
         loop {
             select! {
                 maybe_cmd = self.cmd_rx.recv() => match maybe_cmd {
                     Ok(Command::StopRuntime) => break,
-                    Err(err) => return Err(Error::Internal(Arc::new(err))),
+                    Err(err) => return Err(Error::internal(err)),
                     _ => {}
                 },
                 maybe_res = Self::join_next_task(tasks) => {
@@ -321,7 +321,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Returns [`Error::Internal`] if an actor task panics during shutdown.
-    pub async fn stop(mut self) -> Result<()> {
+    pub async fn stop(mut self) -> Result {
         use tokio::time::*;
 
         let tasks = &mut self.tasks;
@@ -374,10 +374,11 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     }
 
     /// Returns the supervisor's configuration.
-    pub fn config(&self) -> &Config {
+    pub fn config(&self) -> &SupervisorConfig {
         self.config.as_ref()
     }
 
+    /// Returns the monitor registry for adding, removing, and controlling monitors.
     #[cfg(feature = "monitoring")]
     #[cfg_attr(docsrs, doc(cfg(feature = "monitoring")))]
     pub fn monitors(&mut self) -> &mut MonitorRegistry<E, T> {
@@ -385,9 +386,23 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     }
 }
 
+impl<E: Event, T: Topic<E>> std::fmt::Debug for Supervisor<E, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let actors: Vec<&str> = self
+            .registrations
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .collect();
+        f.debug_struct("Supervisor")
+            .field("actors", &actors)
+            .field("tasks", &self.tasks.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl<E: Event, T: Topic<E>> Default for Supervisor<E, T> {
     fn default() -> Self {
-        Self::new(Config::default())
+        Self::new(SupervisorConfig::default())
     }
 }
 
@@ -453,17 +468,6 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
             }
         }
         labels.into_iter().collect()
-    }
-}
-
-impl<E: Event, T: Topic<E>> Drop for Supervisor<E, T> {
-    fn drop(&mut self) {
-        if self.cmd_tx.as_ref().receiver_count() > 0 {
-            let _ = self.cmd_tx.send(Command::StopRuntime);
-            let _ = self.cmd_tx.send(Command::StopBroker);
-        }
-        #[cfg(feature = "monitoring")]
-        self.monitoring.cancel();
     }
 }
 
@@ -575,7 +579,7 @@ mod tests {
 
     impl Actor for DummyActor {
         type Event = TestEvent;
-        async fn handle_event(&mut self, _: &Envelope<Self::Event>) -> Result<()> {
+        async fn handle_event(&mut self, _: &Envelope<Self::Event>) -> Result {
             Ok(())
         }
     }

@@ -23,7 +23,7 @@
 //! impl Actor for Greeter {
 //!     type Event = MyEvent;
 //!
-//!     async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+//!     async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
 //!         if let MyEvent::Hello(name) = envelope.event() {
 //!             println!("Hello, {}!", name);
 //!         }
@@ -32,7 +32,7 @@
 //! }
 //!
 //! #[tokio::main]
-//! async fn main() -> Result<()> {
+//! async fn main() -> Result {
 //!     let mut sup = Supervisor::<MyEvent>::default();
 //!     sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic])?;
 //!
@@ -125,13 +125,13 @@ mod actor;
 mod actor_builder;
 mod actor_config;
 mod actor_id;
-mod config;
+mod supervisor_config;
 mod context;
 mod envelope;
-mod envelope_builder;
 mod error;
 mod event;
 mod event_id;
+mod into_envelope;
 mod label;
 mod meta;
 mod overflow_policy;
@@ -158,13 +158,13 @@ pub use actor::Actor;
 pub use actor_builder::ActorBuilder;
 pub use actor_config::ActorConfig;
 pub use actor_id::ActorId;
-pub use config::Config;
+pub use supervisor_config::SupervisorConfig;
 pub use context::Context;
 pub use envelope::Envelope;
-pub use envelope_builder::EnvelopeBuilder;
 pub use error::Error;
 pub use event::Event;
 pub use event_id::EventId;
+pub use into_envelope::IntoEnvelope;
 pub use label::Label;
 pub use meta::Meta;
 pub use overflow_policy::OverflowPolicy;

@@ -46,7 +46,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         }
     }
 
-    pub(crate) fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) -> Result<()> {
+    pub(crate) fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) -> Result {
         if self.subscribers.contains(&subscriber) {
             return Err(Error::DuplicateActorName(subscriber.actor_id.clone()));
         }
@@ -134,7 +134,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         Ok(())
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result {
         let mut res = Ok(());
         loop {
             select! {
@@ -146,7 +146,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
                         _ => {}
                     }
                     Err(e) => {
-                        res = Err(Error::Internal(Arc::new(e)));
+                        res = Err(Error::internal(e));
                         break;
                     }
                 },
@@ -247,7 +247,7 @@ mod tests {
         Event, Topic,
         internal::{CommandSender, Subscription, broker::Broker},
     };
-    use std::{collections::HashSet, sync::Arc};
+    use std::collections::HashSet;
     use tokio::sync::{broadcast, mpsc};
 
     #[derive(Debug, Clone)]
@@ -276,12 +276,13 @@ mod tests {
         use crate::ActorId;
 
         let (tx, rx) = mpsc::channel(10);
-        let config = Arc::new(crate::Config::default());
         let (command_tx, _) = broadcast::channel(10);
 
         #[cfg(feature = "monitoring")]
         let monitoring = {
-            let registry = crate::monitoring::MonitorRegistry::<TestEvent, TestTopic>::new(&config);
+            let registry = crate::monitoring::MonitorRegistry::<TestEvent, TestTopic>::new(
+                &crate::SupervisorConfig::default(),
+            );
             registry.sink()
         };
 

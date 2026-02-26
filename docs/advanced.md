@@ -13,12 +13,12 @@ Control how errors propagate through actors:
 impl Actor for MyActor {
     type Event = MyEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         // ... processing that might fail
         Ok(())
     }
 
-    fn on_error(&self, error: Error) -> Result<()> {
+    fn on_error(&mut self, error: Error) -> Result {
         match &error {
             Error::MailboxClosed => {
                 // Mailbox closed, probably shutting down
@@ -40,10 +40,10 @@ Returning `Ok(())` from `on_error` swallows the error and continues. Returning `
 
 ### Global Config
 
-Fine-tune runtime behavior with `Config`:
+Fine-tune runtime behavior with `SupervisorConfig`:
 
 ```rust
-let config = Config::default()
+let config = SupervisorConfig::default()
     .with_broker_channel_capacity(512)          // Broker input buffer (default: 256)
     .with_default_actor_channel_capacity(256)   // Actor mailbox default (default: 128)
     .with_default_max_events_per_tick(50);       // Events processed per tick (default: 10)
@@ -90,7 +90,7 @@ sup.build_actor("consumer", |ctx| Consumer::new(ctx))
 Track event causality with parent IDs:
 
 ```rust
-async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
     // Check if this event has a parent
     if let Some(parent_id) = envelope.meta().parent_id() {
         println!("This event was triggered by: {}", parent_id);
@@ -140,7 +140,7 @@ fn overflow_policy(&self) -> OverflowPolicy {
 Producers can check their own channel congestion with `Context::is_sender_full()` to skip non-essential events:
 
 ```rust
-async fn step(&mut self) -> Result<StepAction> {
+async fn step(&mut self) -> Result<StepAction> {  // Note: Result<StepAction>, not Result
     // Only send telemetry when the system isn't busy
     if !self.ctx.is_sender_full() {
         self.ctx.send(Event::Metrics(self.stats())).await?;

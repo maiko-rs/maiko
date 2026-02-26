@@ -93,14 +93,17 @@ pub enum OverflowPolicy {
 }
 
 impl OverflowPolicy {
+    /// Returns `true` if this is the [`Fail`](Self::Fail) policy.
     pub fn is_fail(&self) -> bool {
         matches!(self, OverflowPolicy::Fail)
     }
 
+    /// Returns `true` if this is the [`Drop`](Self::Drop) policy.
     pub fn is_drop(&self) -> bool {
         matches!(self, OverflowPolicy::Drop)
     }
 
+    /// Returns `true` if this is the [`Block`](Self::Block) policy.
     pub fn is_block(&self) -> bool {
         matches!(self, OverflowPolicy::Block)
     }

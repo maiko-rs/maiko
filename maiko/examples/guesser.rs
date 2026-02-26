@@ -28,7 +28,6 @@
 //!
 //! The Game actor stops the entire runtime using `ctx.stop_runtime()` after completing its task.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use maiko::*;
@@ -104,7 +103,7 @@ impl Actor for Guesser {
 
     /// Generate a random guess at regular intervals.
     async fn step(&mut self) -> maiko::Result<StepAction> {
-        let rand = getrandom::u32().map_err(|e| Error::External(Arc::new(e)))?;
+        let rand = getrandom::u32().map_err(Error::external)?;
         let number = (rand % 10) as u8;
 
         // Emit a guess event with our player ID
@@ -147,7 +146,7 @@ impl Game {
 impl Actor for Game {
     type Event = GuesserEvent;
 
-    async fn on_start(&mut self) -> maiko::Result<()> {
+    async fn on_start(&mut self) -> maiko::Result {
         // Send welcome message on startup
         self.ctx
             .send(GuesserEvent::Message(
@@ -157,7 +156,7 @@ impl Actor for Game {
     }
 
     /// Collect guesses from players and emit results when both have guessed.
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> maiko::Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> maiko::Result {
         if let GuesserEvent::Guess { player, number } = envelope.event() {
             // Store the guess based on player ID
             match player {
@@ -173,7 +172,7 @@ impl Actor for Game {
                 self.player1_guess = None;
                 self.player2_guess = None;
 
-                // Emit result with correlation to track related events
+                // Emit result as child event to track causality
                 self.ctx
                     .send_child_event(
                         GuesserEvent::Result {
@@ -210,7 +209,7 @@ impl Actor for Printer {
     type Event = GuesserEvent;
 
     /// Display messages and results to the console.
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> maiko::Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> maiko::Result {
         match envelope.event() {
             GuesserEvent::Message(msg) => {
                 println!("{}", msg);
@@ -229,7 +228,7 @@ impl Actor for Printer {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result {
     let mut supervisor = Supervisor::<GuesserEvent, GuesserTopic>::default();
 
     // Add Player actors with no subscriptions - they only produce events

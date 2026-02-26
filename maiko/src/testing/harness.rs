@@ -7,7 +7,7 @@ use std::{
 use tokio::sync::mpsc::{Sender, UnboundedReceiver, unbounded_channel};
 
 use crate::{
-    ActorId, Envelope, Event, EventId, Supervisor, Topic,
+    ActorId, Envelope, Event, EventId, IntoEnvelope, Supervisor, Topic,
     monitoring::MonitorHandle,
     testing::{
         ActorSpy, EventChain, EventCollector, EventEntry, EventMatcher, EventQuery, EventRecords,
@@ -61,6 +61,10 @@ impl<E: Event, T: Topic<E>> fmt::Debug for Harness<E, T> {
 }
 
 impl<E: Event, T: Topic<E>> Harness<E, T> {
+    /// Create a new test harness attached to the given supervisor.
+    ///
+    /// Must be called before `supervisor.start()`. The harness installs
+    /// an internal monitor to capture event flow.
     pub async fn new(supervisor: &mut Supervisor<E, T>) -> Self {
         let (tx, rx) = unbounded_channel();
         let monitor = EventCollector::new(tx);
@@ -207,10 +211,14 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     ///
     /// Returns the event ID which can be used with [`event`](Self::event) to
     /// inspect delivery.
-    pub async fn send_as(&self, actor: &ActorId, event: E) -> crate::Result<EventId> {
-        let envelope = Envelope::new(event, actor.clone());
+    pub async fn send_as<IE: Into<IntoEnvelope<E>>>(
+        &self,
+        actor_id: &ActorId,
+        into_envelope: IE,
+    ) -> crate::Result<EventId> {
+        let envelope = into_envelope.into().with_actor_id(actor_id.clone()).build();
         let id = envelope.id();
-        self.actor_sender.send(Arc::new(envelope)).await?;
+        self.actor_sender.send(envelope.into()).await?;
         Ok(id)
     }
 

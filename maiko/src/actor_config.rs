@@ -1,17 +1,17 @@
-use crate::Config;
+use crate::SupervisorConfig;
 
 /// Per-actor configuration.
 ///
 /// Controls settings that vary between actors, such as the mailbox channel
 /// capacity. Created automatically by [`Supervisor::add_actor`] using global
-/// defaults from [`Config`], or customized via [`ActorBuilder`].
+/// defaults from [`SupervisorConfig`], or customized via [`ActorBuilder`].
 ///
 /// # Examples
 ///
 /// ```rust
-/// use maiko::{Config, ActorConfig};
+/// use maiko::{SupervisorConfig, ActorConfig};
 ///
-/// let config = ActorConfig::new(&Config::default())
+/// let config = ActorConfig::new(&SupervisorConfig::default())
 ///     .with_channel_capacity(512)
 ///     .with_max_events_per_tick(64);
 ///
@@ -38,8 +38,8 @@ pub struct ActorConfig {
 }
 
 impl ActorConfig {
-    /// Create a new config inheriting defaults from the global [`Config`].
-    pub fn new(global_config: &Config) -> Self {
+    /// Create a new config inheriting defaults from the global [`SupervisorConfig`].
+    pub fn new(global_config: &SupervisorConfig) -> Self {
         Self {
             channel_capacity: global_config.default_actor_channel_capacity(),
             max_events_per_tick: global_config.default_max_events_per_tick(),
@@ -72,5 +72,11 @@ impl ActorConfig {
     /// Returns the maximum number of events processed per tick cycle.
     pub fn max_events_per_tick(&self) -> usize {
         self.max_events_per_tick
+    }
+}
+
+impl Default for ActorConfig {
+    fn default() -> Self {
+        ActorConfig::new(&SupervisorConfig::default())
     }
 }

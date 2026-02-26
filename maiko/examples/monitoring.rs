@@ -12,12 +12,12 @@ struct Greeter;
 impl Actor for Greeter {
     type Event = MyEvent;
 
-    async fn handle_event(&mut self, _envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, _envelope: &Envelope<Self::Event>) -> Result {
         // Intentionally return an error to demonstrate on_error monitoring
         Ok(())
     }
 
-    fn on_error(&self, _error: Error) -> Result<()> {
+    fn on_error(&mut self, _error: Error) -> Result {
         // Swallow the error so the actor continues running
         Ok(())
     }
@@ -47,7 +47,7 @@ impl Monitor<MyEvent> for Printer {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result {
     let mut sup = Supervisor::<MyEvent>::default();
 
     // Add actor and subscribe it to all topics (DefaultTopic)

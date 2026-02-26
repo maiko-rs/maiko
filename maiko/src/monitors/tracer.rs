@@ -15,6 +15,7 @@ use crate::{ActorId, Envelope, Event, OverflowPolicy, Topic, monitoring::Monitor
 ///
 /// sup.monitors().add(Tracer).await;
 /// ```
+#[derive(Debug)]
 pub struct Tracer;
 
 impl<E, T> Monitor<E, T> for Tracer

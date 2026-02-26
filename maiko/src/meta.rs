@@ -52,6 +52,7 @@ impl Meta {
         self.actor_id.as_str()
     }
 
+    /// The actor that emitted this event.
     pub fn actor_id(&self) -> &ActorId {
         &self.actor_id
     }

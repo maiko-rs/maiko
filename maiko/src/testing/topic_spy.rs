@@ -16,7 +16,9 @@ pub struct TopicSpy<E: Event, T: Topic<E>> {
 
 impl<E: Event, T: Topic<E>> fmt::Debug for TopicSpy<E, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TopicSpy").finish_non_exhaustive()
+        f.debug_struct("TopicSpy")
+            .field("query", &self.query)
+            .finish()
     }
 }
 

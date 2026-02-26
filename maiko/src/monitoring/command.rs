@@ -21,4 +21,5 @@ pub(crate) enum MonitorCommand<E: Event, T: Topic<E>> {
         response: oneshot::Sender<()>,
         settle_window: Duration,
     },
+    Shutdown,
 }
