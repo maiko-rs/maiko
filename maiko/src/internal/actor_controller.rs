@@ -116,7 +116,7 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
     }
 
     #[inline]
-    fn handle_error<R>(&self, result: Result<R>) -> Result<()> {
+    fn handle_error<R>(&mut self, result: Result<R>) -> Result<()> {
         if let Err(e) = result {
             #[cfg(feature = "monitoring")]
             self.notify_error(&e);

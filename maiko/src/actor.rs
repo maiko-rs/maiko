@@ -170,7 +170,7 @@ pub trait Actor: Send + 'static {
     /// }
     /// # }
     /// ```
-    fn on_error(&self, error: Error) -> Result<()> {
+    fn on_error(&mut self, error: Error) -> Result<()> {
         Err(error)
     }
 }

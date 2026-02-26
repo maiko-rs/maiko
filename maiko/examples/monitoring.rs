@@ -17,7 +17,7 @@ impl Actor for Greeter {
         Ok(())
     }
 
-    fn on_error(&self, _error: Error) -> Result<()> {
+    fn on_error(&mut self, _error: Error) -> Result<()> {
         // Swallow the error so the actor continues running
         Ok(())
     }

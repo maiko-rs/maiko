@@ -124,7 +124,7 @@ impl Actor for Producer {
         Ok(StepAction::Continue)
     }
 
-    fn on_error(&self, error: maiko::Error) -> maiko::Result<()> {
+    fn on_error(&mut self, error: maiko::Error) -> maiko::Result<()> {
         eprintln!("Producer error: {}", error);
         Ok(())
     }
@@ -160,7 +160,7 @@ impl Actor for Consumer {
         Ok(())
     }
 
-    fn on_error(&self, error: maiko::Error) -> maiko::Result<()> {
+    fn on_error(&mut self, error: maiko::Error) -> maiko::Result<()> {
         eprintln!("Consumer error: {}", error);
         Ok(())
     }

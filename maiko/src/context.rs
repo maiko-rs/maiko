@@ -124,26 +124,6 @@ impl<E> Context<E> {
         self.actor_id.as_str()
     }
 
-    /// Returns a future that never completes.
-    ///
-    /// **Note:** This method is largely obsolete. The default `step()` implementation
-    /// now returns `StepAction::Never`, which disables stepping entirely. You only need
-    /// `pending()` if you want to block inside a custom `step()` implementation.
-    ///
-    /// ```rust,ignore
-    /// // Prefer this (default behavior):
-    /// async fn step(&mut self) -> Result<StepAction> {
-    ///     Ok(StepAction::Never)
-    /// }
-    ///
-    /// // Or simply don't implement step() at all - it defaults to Never
-    /// ```
-    #[inline]
-    pub async fn pending(&self) -> Result<()> {
-        std::future::pending::<()>().await;
-        Ok(())
-    }
-
     /// Whether this actor's channel to the broker has no remaining capacity.
     ///
     /// Producers can use this to skip sending non-essential events when
