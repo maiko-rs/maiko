@@ -7,7 +7,7 @@ use std::{
 use tokio::sync::mpsc::{Sender, UnboundedReceiver, unbounded_channel};
 
 use crate::{
-    ActorId, Envelope, Event, EventId, Supervisor, Topic,
+    ActorId, Envelope, EnvelopeBuilder, Event, EventId, Supervisor, Topic,
     monitoring::MonitorHandle,
     testing::{
         ActorSpy, EventChain, EventCollector, EventEntry, EventMatcher, EventQuery, EventRecords,
@@ -211,8 +211,12 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     ///
     /// Returns the event ID which can be used with [`event`](Self::event) to
     /// inspect delivery.
-    pub async fn send_as(&self, actor: &ActorId, event: E) -> crate::Result<EventId> {
-        let envelope = Envelope::new(event, actor.clone());
+    pub async fn send_as<B: Into<EnvelopeBuilder<E>>>(
+        &self,
+        actor_id: &ActorId,
+        builder: B,
+    ) -> crate::Result<EventId> {
+        let envelope = builder.into().with_actor_id(actor_id.clone()).build()?;
         let id = envelope.id();
         self.actor_sender.send(Arc::new(envelope)).await?;
         Ok(id)

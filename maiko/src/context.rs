@@ -68,8 +68,8 @@ impl<E> Context<E> {
         let envelope = builder
             .into()
             .with_actor_id(self.actor_id.clone())
-            .build()?
-            .with_parent_id(parent_id);
+            .with_parent_id(parent_id)
+            .build()?;
         self.send_envelope(envelope).await
     }
 

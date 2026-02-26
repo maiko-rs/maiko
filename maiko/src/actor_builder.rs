@@ -33,6 +33,7 @@ use crate::{
 /// ```
 ///
 /// [`Supervisor::build_actor`]: crate::Supervisor::build_actor
+#[must_use = "actor is not registered until .build() is called"]
 pub struct ActorBuilder<'a, E: Event, T: Topic<E>, A: Actor<Event = E>> {
     supervisor: &'a mut Supervisor<E, T>,
     actor: A,
@@ -116,7 +117,6 @@ impl<'a, E: Event, T: Topic<E>, A: Actor<Event = E>> ActorBuilder<'a, E, T, A> {
     ///
     /// Returns [`Error::DuplicateActorName`](crate::Error::DuplicateActorName)
     /// if an actor with the same name is already registered.
-    #[must_use = "Aedificare sine aedificatore nullum sensum habet"]
     pub fn build(self) -> Result<ActorId> {
         self.supervisor.register_actor(
             self.ctx,

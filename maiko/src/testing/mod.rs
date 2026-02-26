@@ -38,6 +38,11 @@
 //! assert!(chain.events().segment(&["Input", "Processed", "Output"]));
 //! ```
 //!
+//! # Note
+//!
+//! Spy and query types use `Rc` internally and are `!Send`. This is intentional —
+//! they are designed for single-threaded test contexts only.
+//!
 //! # Warning
 //!
 //! **Do not use in production.** See [`Harness`] documentation for details.

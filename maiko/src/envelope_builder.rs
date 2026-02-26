@@ -27,8 +27,8 @@ impl<E> EnvelopeBuilder<E> {
     ///
     /// Returns [`Error::EnvelopeBuildError`] if neither a pre-built envelope
     /// nor an event + actor ID were provided.
-    pub fn build(self) -> Result<Envelope<E>> {
-        let envelope = if let Some(envelope) = self.envelope {
+    pub(crate) fn build(self) -> Result<Envelope<E>> {
+        let mut envelope = if let Some(envelope) = self.envelope {
             envelope
         } else if let Some(event) = self.event
             && let Some(actor_id) = self.actor_id
@@ -42,17 +42,22 @@ impl<E> EnvelopeBuilder<E> {
         } else {
             return Err(Error::EnvelopeBuildError);
         };
+
+        if let Some(parent_id) = self.parent_id {
+            envelope = envelope.with_parent_id(parent_id);
+        }
+
         Ok(envelope)
     }
 
     /// Set the sender's actor ID. Called internally by [`Context`](crate::Context).
-    pub fn with_actor_id(mut self, actor_id: ActorId) -> Self {
+    pub(crate) fn with_actor_id(mut self, actor_id: ActorId) -> Self {
         self.actor_id = Some(actor_id);
         self
     }
 
     /// Set the parent event ID for causality tracking.
-    pub fn with_parent_id(mut self, parent_id: EventId) -> Self {
+    pub(crate) fn with_parent_id(mut self, parent_id: EventId) -> Self {
         self.parent_id = Some(parent_id);
         self
     }
