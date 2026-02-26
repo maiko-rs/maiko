@@ -1,6 +1,6 @@
 use std::{fmt, hash};
 
-use crate::{ActorId, Event, EventId, Meta};
+use crate::{ActorId, EventId, Meta};
 
 /// The unit carried through all Maiko channels.
 ///
@@ -70,15 +70,6 @@ impl<E> Envelope<E> {
     }
 }
 
-impl<E: Event> From<(&E, &Meta)> for Envelope<E> {
-    fn from((event, meta): (&E, &Meta)) -> Self {
-        Envelope::<E> {
-            meta: meta.clone(),
-            event: event.clone(),
-        }
-    }
-}
-
 impl<E: PartialEq> PartialEq for Envelope<E> {
     fn eq(&self, other: &Self) -> bool {
         self.meta.id() == other.meta.id() && self.event == other.event
@@ -121,6 +112,7 @@ impl<E: fmt::Display> fmt::Display for Envelope<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Event;
 
     #[derive(Clone, Debug)]
     #[allow(unused)]

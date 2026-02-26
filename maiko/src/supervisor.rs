@@ -10,8 +10,8 @@ use tokio::{
 };
 
 use crate::{
-    Actor, ActorBuilder, ActorConfig, ActorId, Context, DefaultTopic, Envelope, Error,
-    Event, IntoEnvelope, Label, Result, Subscribe, SupervisorConfig, Topic,
+    Actor, ActorBuilder, ActorConfig, ActorId, Context, DefaultTopic, Envelope, Error, Event,
+    IntoEnvelope, Label, Result, Subscribe, SupervisorConfig, Topic,
     internal::{ActorController, Broker, Command, CommandSender, Subscriber, Subscription},
 };
 

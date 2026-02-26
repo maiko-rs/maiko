@@ -125,7 +125,6 @@ mod actor;
 mod actor_builder;
 mod actor_config;
 mod actor_id;
-mod supervisor_config;
 mod context;
 mod envelope;
 mod error;
@@ -138,6 +137,7 @@ mod overflow_policy;
 mod step_action;
 mod subscribe;
 mod supervisor;
+mod supervisor_config;
 mod topic;
 
 mod internal;
@@ -158,7 +158,6 @@ pub use actor::Actor;
 pub use actor_builder::ActorBuilder;
 pub use actor_config::ActorConfig;
 pub use actor_id::ActorId;
-pub use supervisor_config::SupervisorConfig;
 pub use context::Context;
 pub use envelope::Envelope;
 pub use error::Error;
@@ -171,6 +170,7 @@ pub use overflow_policy::OverflowPolicy;
 pub use step_action::StepAction;
 pub use subscribe::Subscribe;
 pub use supervisor::Supervisor;
+pub use supervisor_config::SupervisorConfig;
 pub use topic::{DefaultTopic, Topic};
 
 #[cfg(feature = "macros")]
