@@ -173,7 +173,7 @@ impl Actor for Game {
                 self.player1_guess = None;
                 self.player2_guess = None;
 
-                // Emit result with correlation to track related events
+                // Emit result as child event to track causality
                 self.ctx
                     .send_child_event(
                         GuesserEvent::Result {

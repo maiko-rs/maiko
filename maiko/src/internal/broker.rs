@@ -247,7 +247,7 @@ mod tests {
         Event, Topic,
         internal::{CommandSender, Subscription, broker::Broker},
     };
-    use std::{collections::HashSet, sync::Arc};
+    use std::collections::HashSet;
     use tokio::sync::{broadcast, mpsc};
 
     #[derive(Debug, Clone)]
@@ -276,12 +276,13 @@ mod tests {
         use crate::ActorId;
 
         let (tx, rx) = mpsc::channel(10);
-        let config = Arc::new(crate::Config::default());
         let (command_tx, _) = broadcast::channel(10);
 
         #[cfg(feature = "monitoring")]
         let monitoring = {
-            let registry = crate::monitoring::MonitorRegistry::<TestEvent, TestTopic>::new(&config);
+            let registry = crate::monitoring::MonitorRegistry::<TestEvent, TestTopic>::new(
+                &crate::Config::default(),
+            );
             registry.sink()
         };
 

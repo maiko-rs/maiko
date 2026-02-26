@@ -378,6 +378,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         self.config.as_ref()
     }
 
+    /// Returns the monitor registry for adding, removing, and controlling monitors.
     #[cfg(feature = "monitoring")]
     #[cfg_attr(docsrs, doc(cfg(feature = "monitoring")))]
     pub fn monitors(&mut self) -> &mut MonitorRegistry<E, T> {

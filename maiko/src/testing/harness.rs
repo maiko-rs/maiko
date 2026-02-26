@@ -61,6 +61,10 @@ impl<E: Event, T: Topic<E>> fmt::Debug for Harness<E, T> {
 }
 
 impl<E: Event, T: Topic<E>> Harness<E, T> {
+    /// Create a new test harness attached to the given supervisor.
+    ///
+    /// Must be called before `supervisor.start()`. The harness installs
+    /// an internal monitor to capture event flow.
     pub async fn new(supervisor: &mut Supervisor<E, T>) -> Self {
         let (tx, rx) = unbounded_channel();
         let monitor = EventCollector::new(tx);

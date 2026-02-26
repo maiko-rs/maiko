@@ -26,6 +26,10 @@ pub struct Recorder {
 
 impl Recorder {
     /// Create a new recorder that writes to the specified path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`std::io::Error`] if the file cannot be created.
     pub fn new<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let file = File::create(path)?;
         Ok(Self {

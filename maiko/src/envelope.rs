@@ -57,11 +57,13 @@ impl<E> Envelope<E> {
         &self.event
     }
 
+    /// Returns the event metadata (sender, timestamp, parent ID).
     #[inline]
     pub fn meta(&self) -> &Meta {
         &self.meta
     }
 
+    /// Shorthand for `self.meta().id()`.
     #[inline]
     pub fn id(&self) -> EventId {
         self.meta.id()

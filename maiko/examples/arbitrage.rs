@@ -13,7 +13,7 @@
 //! - Inject events and observe their propagation
 //! - Assert on event delivery to specific actors
 //! - Query events by sender, receiver, topic, or custom predicates
-//! - Track parent-child event relationships via correlation IDs
+//! - Track parent-child event relationships via parent IDs
 
 use maiko::{Actor, Context, Subscribe, Topic, testing::Harness};
 

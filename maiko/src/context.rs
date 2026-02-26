@@ -113,6 +113,7 @@ impl<E> Context<E> {
         self.cmd_tx.send(Command::StopRuntime)
     }
 
+    /// The identity of this actor.
     #[inline]
     pub fn actor_id(&self) -> &ActorId {
         &self.actor_id

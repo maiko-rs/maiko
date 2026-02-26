@@ -60,7 +60,7 @@ impl Config {
         self.broker_channel_capacity
     }
 
-    /// Set the maximum number of events processed per tick cycle.
+    /// Set the default maximum events processed per tick cycle for new actors.
     ///
     /// This controls batching behavior in the actor event loop.
     /// After processing this many events, the actor yields to allow
@@ -71,7 +71,6 @@ impl Config {
     /// - Higher values (50-100): Better throughput, potential starvation of `step()`
     ///
     /// [`Actor::step`]: crate::Actor::step
-    /// Set the default maximum events processed per tick for new actors.
     pub fn with_default_max_events_per_tick(mut self, limit: usize) -> Self {
         self.default_max_events_per_tick = limit;
         self

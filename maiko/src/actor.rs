@@ -164,7 +164,7 @@ pub trait Actor: Send + 'static {
     /// # struct MyActor;
     /// # impl Actor for MyActor {
     /// #     type Event = MyEvent;
-    /// fn on_error(&self, error: Error) -> Result<()> {
+    /// fn on_error(&mut self, error: Error) -> Result<()> {
     ///     eprintln!("Actor error: {}", error);
     ///     Ok(())  // Swallow and continue
     /// }

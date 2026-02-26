@@ -37,6 +37,7 @@ use std::{hash::Hash, sync::Arc};
 pub struct ActorId(Arc<str>);
 
 impl ActorId {
+    /// Create an actor ID from a string name.
     pub fn new(id: &str) -> Self {
         Self(Arc::from(id))
     }
