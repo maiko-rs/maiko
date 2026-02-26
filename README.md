@@ -19,7 +19,7 @@
 
 Actors are named components with their own state. They communicate through events routed by topic, without knowing who's listening. Think Kafka-style pub/sub, but embedded in your Tokio application.
 
-Maiko comes with a built-in [test harness](docs/testing.md) for asserting on event flow, correlation tracking for tracing event propagation, and monitoring hooks for observability - all without external infrastructure.
+Maiko comes with a built-in [test harness](docs/testing.md) for asserting on event flow, parent tracking for tracing event propagation, and monitoring hooks for observability - all without external infrastructure.
 
 ### No more channel spaghetti
 
@@ -49,7 +49,7 @@ sup.add_actor("logger",    |ctx| Logger::new(ctx),    Subscribe::all())?;       
 | Communication | Events | Channels | Request-response | Events |
 | Lifecycle | Managed (start, stop, hooks) | Manual spawns | Managed | Managed |
 | Testing | Built-in harness, spies, event chains | Roll your own | None built-in | External tools |
-| Correlation | First-class (correlation IDs, chain tracing) | Manual | Manual | Headers |
+| Causality | First-class (parent IDs, chain tracing) | Manual | Manual | Headers |
 | Scope | In-process | In-process | In-process | Distributed |
 
 Maiko sits between raw Tokio and full actor frameworks. Think of it as moving from breadboard to PCB - same components, reliable traces, testable as a whole.
@@ -84,7 +84,7 @@ struct Greeter;
 impl Actor for Greeter {
     type Event = MyEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         if let MyEvent::Hello(name) = envelope.event() {
             println!("Hello, {}!", name);
         }
@@ -93,7 +93,7 @@ impl Actor for Greeter {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result {
     let mut sup = Supervisor::<MyEvent>::default();
     sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic])?;
 
@@ -128,7 +128,7 @@ cargo run --example guesser
 | **Context** | Provides actors with `send()`, `stop()`, `stop_runtime()`, and metadata access |
 | **OverflowPolicy** | Controls behavior when a subscriber's channel is full (`Fail`, `Drop`, `Block`) |
 | **Supervisor** | Manages actor lifecycles and the runtime |
-| **Envelope** | Wraps events with metadata (sender, correlation ID) |
+| **Envelope** | Wraps events with metadata (sender, timestamp, parent ID) |
 
 For detailed documentation, see **[Core Concepts](docs/concepts.md)**.
 
@@ -140,7 +140,7 @@ Maiko includes a test harness (built on the monitoring API) for observing and as
 
 ```rust
 #[tokio::test]
-async fn test_event_delivery() -> Result<()> {
+async fn test_event_delivery() -> Result {
     let mut sup = Supervisor::<MyEvent>::default();
     let producer = sup.add_actor("producer", |ctx| Producer::new(ctx), &[DefaultTopic])?;
     let consumer = sup.add_actor("consumer", |ctx| Consumer::new(ctx), &[DefaultTopic])?;

@@ -33,14 +33,14 @@ struct WeatherLogger;
 impl Actor for WeatherLogger {
     type Event = WeatherEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         println!("[weather] {:?}", envelope.event());
         Ok(())
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result {
     // Create a supervisor. DefaultTopic routes all events to all subscribers.
     let mut sup = Supervisor::<WeatherEvent>::default();
 
@@ -85,7 +85,7 @@ struct Alerter {
 impl Actor for Alerter {
     type Event = WeatherEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         if let WeatherEvent::Temperature(temp) = envelope.event() {
             if *temp > self.threshold {
                 self.ctx.send(WeatherEvent::Alert(
@@ -102,14 +102,14 @@ struct WeatherLogger;
 impl Actor for WeatherLogger {
     type Event = WeatherEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         println!("[weather] {:?}", envelope.event());
         Ok(())
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result {
     let mut sup = Supervisor::<WeatherEvent>::default();
 
     sup.add_actor("alerter", |ctx| Alerter { ctx, threshold: 35.0 }, &[DefaultTopic])?;
@@ -168,7 +168,7 @@ struct Alerter {
 impl Actor for Alerter {
     type Event = WeatherEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         if let WeatherEvent::Temperature(temp) = envelope.event() {
             if *temp > self.threshold {
                 self.ctx.send(WeatherEvent::Alert(
@@ -185,14 +185,14 @@ struct WeatherLogger;
 impl Actor for WeatherLogger {
     type Event = WeatherEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         println!("[weather] {:?}", envelope.event());
         Ok(())
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result {
     // Specify both the event type AND the topic type.
     let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
 
@@ -252,7 +252,7 @@ struct TempSensor {
 impl Actor for TempSensor {
     type Event = WeatherEvent;
 
-    async fn handle_event(&mut self, _envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, _envelope: &Envelope<Self::Event>) -> Result {
         Ok(())
     }
 
@@ -292,7 +292,7 @@ Maiko provides a monitoring API for observing event flow. Enable it with the `mo
 
 ```toml
 [dependencies]
-maiko = { version = "0.2", features = ["monitoring"] }
+maiko = { version = "0.3", features = ["monitoring"] }
 ```
 
 The built-in `Tracer` logs event lifecycle to the `tracing` crate. Add `tracing-subscriber` for console output:
@@ -305,7 +305,7 @@ cargo add tracing-subscriber
 use maiko::monitors::Tracer;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result {
     // Initialize tracing - without this, Tracer output goes nowhere.
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::TRACE)
@@ -347,7 +347,7 @@ Maiko includes a test harness for asserting on event flow. Enable it in your `Ca
 
 ```toml
 [dev-dependencies]
-maiko = { version = "0.2", features = ["test-harness"] }
+maiko = { version = "0.3", features = ["test-harness"] }
 ```
 
 Write a test that verifies the alerter triggers on high temperatures:
@@ -358,7 +358,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_high_temperature_triggers_alert() -> Result<()> {
+    async fn test_high_temperature_triggers_alert() -> Result {
         let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
 
         let sensor = sup.add_actor("sensor", |ctx| TempSensor { ctx }, Subscribe::none())?;
@@ -392,7 +392,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_normal_temperature_no_alert() -> Result<()> {
+    async fn test_normal_temperature_no_alert() -> Result {
         let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
 
         let sensor = sup.add_actor("sensor", |ctx| TempSensor { ctx }, Subscribe::none())?;

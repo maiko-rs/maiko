@@ -10,8 +10,8 @@ use tokio::{
 };
 
 use crate::{
-    Actor, ActorBuilder, ActorConfig, ActorId, Config, Context, DefaultTopic, Envelope, Error,
-    Event, IntoEnvelope, Label, Result, Subscribe, Topic,
+    Actor, ActorBuilder, ActorConfig, ActorId, Context, DefaultTopic, Envelope, Error,
+    Event, IntoEnvelope, Label, Result, Subscribe, SupervisorConfig, Topic,
     internal::{ActorController, Broker, Command, CommandSender, Subscriber, Subscription},
 };
 
@@ -46,7 +46,7 @@ use crate::monitoring::MonitorRegistry;
 ///
 /// See also: [`Actor`], [`Context`], [`Topic`].
 pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
-    config: Arc<Config>,
+    config: Arc<SupervisorConfig>,
     broker: Arc<Mutex<Broker<E, T>>>,
     pub(crate) sender: Sender<Arc<Envelope<E>>>,
     tasks: JoinSet<Result>,
@@ -63,7 +63,7 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
 
 impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// Create a new supervisor with the given runtime configuration.
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: SupervisorConfig) -> Self {
         let config = Arc::new(config);
         let (tx, rx) = channel::<Arc<Envelope<E>>>(config.broker_channel_capacity());
 
@@ -374,7 +374,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     }
 
     /// Returns the supervisor's configuration.
-    pub fn config(&self) -> &Config {
+    pub fn config(&self) -> &SupervisorConfig {
         self.config.as_ref()
     }
 
@@ -402,7 +402,7 @@ impl<E: Event, T: Topic<E>> std::fmt::Debug for Supervisor<E, T> {
 
 impl<E: Event, T: Topic<E>> Default for Supervisor<E, T> {
     fn default() -> Self {
-        Self::new(Config::default())
+        Self::new(SupervisorConfig::default())
     }
 }
 
@@ -468,15 +468,6 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
             }
         }
         labels.into_iter().collect()
-    }
-}
-
-impl<E: Event, T: Topic<E>> Drop for Supervisor<E, T> {
-    fn drop(&mut self) {
-        if self.cmd_tx.as_ref().receiver_count() > 0 {
-            let _ = self.cmd_tx.send(Command::StopBroker);
-            let _ = self.cmd_tx.send(Command::StopRuntime);
-        }
     }
 }
 

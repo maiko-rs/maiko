@@ -281,7 +281,7 @@ mod tests {
         #[cfg(feature = "monitoring")]
         let monitoring = {
             let registry = crate::monitoring::MonitorRegistry::<TestEvent, TestTopic>::new(
-                &crate::Config::default(),
+                &crate::SupervisorConfig::default(),
             );
             registry.sink()
         };

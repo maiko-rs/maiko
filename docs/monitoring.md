@@ -4,7 +4,7 @@ Maiko provides a monitoring API for observing event flow through the system. Ena
 
 ```toml
 [dependencies]
-maiko = { version = "0.2", features = ["monitoring"] }
+maiko = { version = "0.3", features = ["monitoring"] }
 ```
 
 ## Overview
@@ -46,7 +46,7 @@ impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
 }
 
 #[tokio::main]
-async fn main() -> maiko::Result<()> {
+async fn main() -> maiko::Result {
     let mut sup = maiko::Supervisor::<MyEvent>::default();
 
     // Register the monitor
@@ -98,7 +98,7 @@ query.stopped_actors();  // snapshot of stopped actor IDs
 Records events to a JSON Lines file for replay or debugging. Requires `recorder` feature:
 
 ```toml
-maiko = { version = "0.2", features = ["recorder"] }
+maiko = { version = "0.3", features = ["recorder"] }
 ```
 
 ```rust
@@ -272,7 +272,7 @@ If a monitor panics during a callback, it is automatically removed from the regi
 The monitoring channel has a default capacity of 1024 messages. If monitors can't keep up with event throughput, messages may be dropped (the system uses `try_send` to avoid blocking the broker). Configure via:
 
 ```rust
-let config = Config::default().with_monitoring_channel_size(4096);
+let config = SupervisorConfig::default().with_monitoring_channel_size(4096);
 let sup = Supervisor::<MyEvent>::new(config);
 ```
 

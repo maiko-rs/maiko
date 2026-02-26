@@ -3,7 +3,7 @@ use std::sync::{Arc, atomic::AtomicBool};
 use tokio::sync::oneshot;
 
 use crate::{
-    Config, Event, Topic,
+    Event, SupervisorConfig, Topic,
     monitoring::{
         Monitor, MonitorCommand, MonitorDispatcher, MonitorHandle, MonitorId, MonitoringSink,
     },
@@ -36,7 +36,7 @@ pub struct MonitorRegistry<E: Event, T: Topic<E>> {
 }
 
 impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
-    pub(crate) fn new(config: &Config) -> Self {
+    pub(crate) fn new(config: &SupervisorConfig) -> Self {
         let (tx, rx) = tokio::sync::mpsc::channel(config.monitoring_channel_capacity());
         let is_active = Arc::new(AtomicBool::new(false));
         let dispatcher = MonitorDispatcher::new(rx, is_active.clone());
@@ -120,9 +120,6 @@ impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
 
 impl<E: Event, T: Topic<E>> Drop for MonitorRegistry<E, T> {
     fn drop(&mut self) {
-        if !self.sender.is_closed() {
-            let _ = self.sender.try_send(MonitorCommand::Shutdown);
-        }
         if let Some(handle) = self.dispatcher_handle.take() {
             handle.abort();
         }

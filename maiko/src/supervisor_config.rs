@@ -6,16 +6,16 @@
 /// # Examples
 ///
 /// ```rust
-/// use maiko::Config;
+/// use maiko::SupervisorConfig;
 ///
-/// let config = Config::default()
+/// let config = SupervisorConfig::default()
 ///     .with_broker_channel_capacity(512)          // Larger broker buffer
 ///     .with_default_actor_channel_capacity(256)   // Larger actor mailboxes
 ///     .with_default_max_events_per_tick(20);       // Process more events per cycle
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Config {
+pub struct SupervisorConfig {
     /// Size of the broker's input channel buffer.
     /// Determines how many events can be queued before producers block (stage 1).
     /// Default: 256
@@ -37,9 +37,9 @@ pub struct Config {
     monitoring_channel_capacity: usize,
 }
 
-impl Default for Config {
+impl Default for SupervisorConfig {
     fn default() -> Self {
-        Config {
+        SupervisorConfig {
             broker_channel_capacity: 256,
             default_actor_channel_capacity: 128,
             default_max_events_per_tick: 10,
@@ -48,7 +48,7 @@ impl Default for Config {
     }
 }
 
-impl Config {
+impl SupervisorConfig {
     /// Set the per-actor channel capacity for stage 1 (actor to broker).
     pub fn with_broker_channel_capacity(mut self, capacity: usize) -> Self {
         self.broker_channel_capacity = capacity;

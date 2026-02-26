@@ -18,15 +18,14 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 ## Branching
 
-**0.2.x** is the current stable series. The `main` branch tracks the latest 0.2.x release. Version 0.2.6 is intended to be the final release in this series — only bugfixes are accepted for 0.2.
+`main` always tracks the current release series. All PRs target `main` unless backporting a fix to an older series.
 
-**0.3.0** is the next major development target, with API changes still being designed. Work targeting 0.3 should be based on the `v0.3.0` branch.
+Maintenance branches (e.g., `0.2.x`) exist for critical bugfixes to previous versions. These branches receive only bugfixes — no new features or API changes.
 
 | What you're contributing | Target branch |
 |--------------------------|---------------|
-| Bugfix for current release | `main` |
-| Documentation improvement | `main` |
-| New feature or API change | `v0.3.0` |
+| Bugfix, feature, or docs for current release | `main` |
+| Critical bugfix for a previous version | maintenance branch (e.g., `0.2.x`) |
 
 If you're unsure which branch to target, just ask in the issue or PR — happy to help.
 

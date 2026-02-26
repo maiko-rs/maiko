@@ -102,7 +102,7 @@ struct PacketProcessor {
 impl Actor for PacketProcessor {
     type Event = NetworkEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         match envelope.event() {
             NetworkEvent::PacketReceived(data) => {
                 self.buffer.extend(data);
@@ -144,12 +144,12 @@ Actors can implement optional lifecycle methods:
 - **`on_error`** - Handle errors (swallow or propagate)
 
 ```rust
-async fn on_start(&mut self) -> Result<()> {
+async fn on_start(&mut self) -> Result {
     println!("Actor starting...");
     Ok(())
 }
 
-fn on_error(&self, error: Error) -> Result<()> {
+fn on_error(&mut self, error: Error) -> Result {
     eprintln!("Error: {}", error);
     Ok(())  // Swallow error, continue running
 }
@@ -166,7 +166,7 @@ struct Logger;
 impl Actor for Logger {
     type Event = MyEvent;
 
-    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+    async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
         println!("Received: {:?}", envelope.event());
         Ok(())
     }
@@ -297,7 +297,7 @@ async fn step(&mut self) -> Result<StepAction> {
 let producer: ActorId = sup.add_actor("producer", |ctx| Producer::new(ctx), &[DefaultTopic])?;
 
 // Access sender from event metadata
-async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
     let sender: &ActorId = envelope.meta().actor_id();
     println!("Event from: {}", sender.as_str());
     Ok(())
@@ -324,7 +324,7 @@ This makes `ActorId` suitable for distributed scenarios where actor references n
 Events arrive wrapped in an `Envelope` containing metadata:
 
 ```rust
-async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result<()> {
+async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {
     // Access the event
     let event = envelope.event();
 

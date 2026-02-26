@@ -8,32 +8,44 @@
 - Internal broadcast command channel for unified control flow ([#92])
 - `# Errors` documentation on all public `Result`-returning methods
 - `EventId` newtype struct (was `type EventId = u128`)
-- `EnvelopeBuilder<E>` for flexible envelope construction
-- `ActorId`: `From<&str>`, `From<String>` impls
+- `Error::external()` helper for wrapping errors into `Error::External`
+- `ActorId`: `From<&str>`, `From<String>`, `AsRef<str>` impls
+- `Debug` impl for `Supervisor` (shows actor names and task count)
+- `#[must_use]` on `ActorBuilder` to catch forgotten `.build()` calls
+- `Drop` impl for `MonitorRegistry` for safety-net cleanup
 
 ### Changed
 
+- **Breaking:** `Config` renamed to `SupervisorConfig`
+- **Breaking:** `Actor::on_error()` takes `&mut self` instead of `&self`
+- **Breaking:** `Error::IoError` now wraps `Arc<std::io::Error>` with `#[source]` (was `String`)
 - **Breaking:** `ActorId::new()` takes `&str` instead of `Arc<str>`
 - **Breaking:** `ActorId::name()` renamed to `as_str()`
 - **Breaking:** `Envelope` and `ActorId` no longer implement `Deref`
-- **Breaking:** `Context::send()` accepts `Into<EnvelopeBuilder<E>>` instead of `Into<E>`
+- **Breaking:** `Context::send()` accepts `Into<IntoEnvelope<E>>` instead of `Into<E>`
 - **Breaking:** `Context::send_child_event()` takes `EventId` instead of `&Meta`
 - **Breaking:** `Meta::parent()` renamed to `parent_id()`
 - **Breaking:** `Envelope::with_parent()` renamed to `with_parent_id()`
 - **Breaking:** `correlation_id` renamed to `parent_id` throughout
-- **Breaking:** `Error::IOError` renamed to `IoError`
+- **Breaking:** `Error::IOError` renamed to `IoError`; `Error::SendError` renamed to `MailboxClosed`; `Error::ChannelIsFull` renamed to `MailboxFull`
+- **Breaking:** `Error::ActorJoinError` removed, replaced by `Error::Internal`
 - **Breaking:** `Context::send_envelope()` made private
 - **Breaking:** `Context::stop()` now stops only the calling actor (was system-wide); use `stop_runtime()` for full shutdown
 - **Breaking:** `Supervisor::run()`, `join()`, `stop()` now consume `self`, preventing use-after-shutdown ([#43])
-- Improved documentation with examples
+- Improved `Debug` impls across the codebase
+- Improved documentation with examples and doc comments on previously undocumented methods
+- Monitoring system uses `MonitorCommand::Shutdown` instead of `CancellationToken`
+- Graceful shutdown collects all task errors instead of short-circuiting on first failure
 
 ### Removed
 
+- **Breaking:** `Context::pending()` removed (use `StepAction::Never` instead)
 - **Breaking:** `Context::send_with_correlation()` (use `send_child_event()` instead)
 - **Breaking:** `Deref` impls on `Envelope` (use `event()`) and `ActorId` (use `as_str()`)
 - **Breaking:** `Context::is_alive()` removed (internal to actor controller)
 - **Breaking:** `Config::maintenance_interval` removed (broker cleanup is now reactive via commands)
 - **Breaking:** Deprecated methods removed from `Config`
+- `tokio-util` dependency removed (was used for `CancellationToken` in monitoring)
 
 [#43]: https://github.com/maiko-rs/maiko/issues/43
 [#92]: https://github.com/maiko-rs/maiko/issues/92

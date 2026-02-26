@@ -1,17 +1,17 @@
 use crate::{ActorId, Envelope, Event, EventId};
 
-/// Builder for constructing [`Envelope`]s.
+/// Intermediate type used to pass events to [`Context::send`](crate::Context::send)
+/// and [`Supervisor::send`](crate::Supervisor::send).
 ///
-/// Users rarely interact with this directly. `Context::send()` accepts any
-/// `T: Into<EnvelopeBuilder<E>>`, so passing a bare event works:
+/// You don't interact with this type directly — any event type `E`
+/// converts into it automatically via `From<E>`:
 ///
 /// ```rust,ignore
 /// ctx.send(MyEvent::Ping).await?;
 /// ```
 ///
-/// The builder is created automatically via `From<E>` (for events) or
-/// `From<Envelope<E>>` (for pre-built envelopes). The [`Context`](crate::Context)
-/// fills in the actor ID before calling [`build()`](Self::build).
+/// Created automatically via `From<E>` (for events) or
+/// `From<Envelope<E>>` (for pre-built envelopes).
 #[derive(Debug, Clone)]
 pub struct IntoEnvelope<E> {
     envelope: Option<Envelope<E>>,

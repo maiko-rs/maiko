@@ -14,7 +14,7 @@ use crate::{
 /// actor construction from topic subscription.
 ///
 /// Defaults to no topic subscriptions and channel capacity inherited from the
-/// global [`Config`](crate::Config).
+/// global [`SupervisorConfig`](crate::SupervisorConfig).
 ///
 /// # Examples
 ///
