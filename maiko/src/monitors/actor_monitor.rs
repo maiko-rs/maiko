@@ -59,6 +59,14 @@ impl ActorMonitor {
         lock.active.contains(actor)
     }
 
+    /// Returns `true` if the actor was registered and has since stopped.
+    ///
+    /// Returns `false` for actors that were never registered or are still active.
+    pub fn is_stopped(&self, actor: &ActorId) -> bool {
+        let lock = self.inner.lock().unwrap();
+        lock.stopped.contains(actor)
+    }
+
     /// Returns the number of overflow events observed for this actor.
     pub fn overflow_count(&self, actor: &ActorId) -> usize {
         let lock = self.inner.lock().unwrap();

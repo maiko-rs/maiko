@@ -141,6 +141,10 @@ Inspect events from an actor's perspective:
 ```rust
 let spy = test.actor(&consumer);
 
+// Lifecycle
+spy.is_running()       // true if the actor is currently active
+spy.is_stopped()       // true if the actor was registered and has since stopped
+
 // Inbound (events received)
 spy.inbound()          // EventQuery of received events
 spy.events_received()  // number of events received

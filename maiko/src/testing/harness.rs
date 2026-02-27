@@ -9,6 +9,7 @@ use tokio::sync::mpsc::{Sender, UnboundedReceiver, unbounded_channel};
 use crate::{
     ActorId, Envelope, Event, EventId, IntoEnvelope, Supervisor, Topic,
     monitoring::MonitorHandle,
+    monitors::ActorMonitor,
     testing::{
         ActorSpy, EventChain, EventCollector, EventEntry, EventMatcher, EventQuery, EventRecords,
         EventSpy, TopicSpy, expectation::Expectation,
@@ -49,6 +50,7 @@ pub struct Harness<E: Event, T: Topic<E>> {
     monitor_handle: MonitorHandle<E, T>,
     pub(super) receiver: UnboundedReceiver<EventEntry<E, T>>,
     actor_sender: Sender<Arc<Envelope<E>>>,
+    actor_monitor: ActorMonitor,
 }
 
 impl<E: Event, T: Topic<E>> fmt::Debug for Harness<E, T> {
@@ -69,12 +71,17 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
         let (tx, rx) = unbounded_channel();
         let monitor = EventCollector::new(tx);
         let monitor_handle = supervisor.monitors().add(monitor).await;
+
+        let actor_monitor = ActorMonitor::new();
+        supervisor.monitors().add(actor_monitor.clone()).await;
+
         Self {
             snapshot: Vec::new(),
             records: Arc::new(Vec::new()),
             monitor_handle,
             receiver: rx,
             actor_sender: supervisor.sender.clone(),
+            actor_monitor,
         }
     }
 
@@ -252,7 +259,11 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     ///
     /// Use this to inspect what an actor sent and received.
     pub fn actor(&self, actor: &ActorId) -> ActorSpy<E, T> {
-        ActorSpy::new(self.records.clone(), actor.clone())
+        ActorSpy::new(
+            self.records.clone(),
+            actor.clone(),
+            self.actor_monitor.clone(),
+        )
     }
 
     /// Returns a spy for observing events on a specific topic.

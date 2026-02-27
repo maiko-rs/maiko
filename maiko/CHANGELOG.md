@@ -13,6 +13,8 @@
 - `Debug` impl for `Supervisor` (shows actor names and task count)
 - `#[must_use]` on `ActorBuilder` to catch forgotten `.build()` calls
 - `Drop` impl for `MonitorRegistry` for safety-net cleanup
+- `ActorSpy::is_running()` / `is_stopped()` for actor lifecycle assertions in tests
+- `ActorMonitor::is_stopped()` method (complements `is_alive()`)
 
 ### Changed
 
