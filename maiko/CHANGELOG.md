@@ -5,38 +5,35 @@
 ### Added
 
 - `Context::stop_runtime()` to shut down the entire runtime from within an actor ([#92])
-- Internal broadcast command channel for unified control flow ([#92])
-- `# Errors` documentation on all public `Result`-returning methods
-- `EventId` newtype struct (was `type EventId = u128`)
-- `Error::external()` helper for wrapping errors into `Error::External`
-- `ActorId`: `From<&str>`, `From<String>`, `AsRef<str>` impls
-- `Debug` impl for `Supervisor` (shows actor names and task count)
-- `#[must_use]` on `ActorBuilder` to catch forgotten `.build()` calls
-- `Drop` impl for `MonitorRegistry` for safety-net cleanup
+- Internal broadcast command channel for unified control flow (issue: [#92], pr: [#93])
+- `# Errors` documentation on all public `Result`-returning methods ([#89])
+- `EventId` newtype struct (was `type EventId = u128`) ([#89])
+- `Error::external()` helper for wrapping errors into `Error::External` ([#95])
+- `ActorId`: `From<&str>`, `From<String>`, `AsRef<str>` impls ([#89], [#95])
+- `Drop` impl for `MonitorRegistry` for safety-net cleanup ([#95])
 - `ActorSpy::is_running()` / `is_stopped()` for actor lifecycle assertions in tests
 - `ActorMonitor::is_stopped()` method (complements `is_alive()`)
 
 ### Changed
 
-- **Breaking:** `Config` renamed to `SupervisorConfig`
-- **Breaking:** `Actor::on_error()` takes `&mut self` instead of `&self`
-- **Breaking:** `Error::IoError` now wraps `Arc<std::io::Error>` with `#[source]` (was `String`)
-- **Breaking:** `ActorId::new()` takes `&str` instead of `Arc<str>`
-- **Breaking:** `ActorId::name()` renamed to `as_str()`
+- **Breaking:** `Config` renamed to `SupervisorConfig` ([#95])
+- **Breaking:** `Actor::on_error()` takes `&mut self` instead of `&self` ([#95])
+- **Breaking:** `Error::IoError` now wraps `Arc<std::io::Error>` with `#[source]` (was `String`) ([#95])
+- **Breaking:** `ActorId::new()` takes `&str` instead of `Arc<str>` ([#89])
+- **Breaking:** `ActorId::name()` renamed to `as_str()` ([#89])
 - **Breaking:** `Envelope` and `ActorId` no longer implement `Deref`
-- **Breaking:** `Context::send()` accepts `Into<IntoEnvelope<E>>` instead of `Into<E>`
-- **Breaking:** `Context::send_child_event()` takes `EventId` instead of `&Meta`
-- **Breaking:** `Meta::parent()` renamed to `parent_id()`
-- **Breaking:** `Envelope::with_parent()` renamed to `with_parent_id()`
+- **Breaking:** `Context::send()` accepts `Into<IntoEnvelope<E>>` instead of `Into<E>` ([#95])
+- **Breaking:** `Context::send_child_event()` takes `EventId` instead of `&Meta` ([#95])
+- **Breaking:** `Meta::parent()` renamed to `parent_id()` ([#89])
+- **Breaking:** `Envelope::with_parent()` renamed to `with_parent_id()` ([#89])
 - **Breaking:** `correlation_id` renamed to `parent_id` throughout
-- **Breaking:** `Error::IOError` renamed to `IoError`; `Error::SendError` renamed to `MailboxClosed`; `Error::ChannelIsFull` renamed to `MailboxFull`
-- **Breaking:** `Error::ActorJoinError` removed, replaced by `Error::Internal`
+- **Breaking:** `Error::IOError` renamed to `IoError`; `Error::SendError` renamed to `MailboxClosed`; `Error::ChannelIsFull` renamed to `MailboxFull` ([#93])
 - **Breaking:** `Context::send_envelope()` made private
 - **Breaking:** `Context::stop()` now stops only the calling actor (was system-wide); use `stop_runtime()` for full shutdown
-- **Breaking:** `Supervisor::run()`, `join()`, `stop()` now consume `self`, preventing use-after-shutdown ([#43])
-- Improved `Debug` impls across the codebase
+- **Breaking:** `Supervisor::run()`, `join()`, `stop()` now consume `self`, preventing use-after-shutdown (issue: [#43], pr: [#90])
+- Improved `Debug` impls across the codebase ([#95], ...)
 - Improved documentation with examples and doc comments on previously undocumented methods
-- Monitoring system uses `MonitorCommand::Shutdown` instead of `CancellationToken`
+- Monitoring system uses `MonitorCommand::Shutdown` instead of `CancellationToken` ([#95])
 - Graceful shutdown collects all task errors instead of short-circuiting on first failure
 
 ### Removed
@@ -47,10 +44,15 @@
 - **Breaking:** `Context::is_alive()` removed (internal to actor controller)
 - **Breaking:** `Config::maintenance_interval` removed (broker cleanup is now reactive via commands)
 - **Breaking:** Deprecated methods removed from `Config`
+- **Breaking:** `Error::ActorJoinError` removed, replaced by `Error::Internal`
 - `tokio-util` dependency removed (was used for `CancellationToken` in monitoring)
 
 [#43]: https://github.com/maiko-rs/maiko/issues/43
+[#89]: https://github.com/maiko-rs/maiko/pull/89
+[#90]: https://github.com/maiko-rs/maiko/pull/90
 [#92]: https://github.com/maiko-rs/maiko/issues/92
+[#93]: https://github.com/maiko-rs/maiko/pull/93
+[#95]: https://github.com/maiko-rs/maiko/pull/95
 
 ---
 
