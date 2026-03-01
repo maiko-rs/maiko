@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::{
     ActorId, Event, Topic,
+    monitors::ActorMonitor,
     testing::{EventEntry, EventQuery, EventRecords},
 };
 
@@ -12,16 +13,24 @@ use crate::{
 /// - Events sent by this actor (outbound)
 /// - Which actors this actor communicated with
 pub struct ActorSpy<E: Event, T: Topic<E>> {
-    #[allow(dead_code)]
     actor: ActorId,
     inbound: EventQuery<E, T>,
     outbound: EventQuery<E, T>,
+    actor_monitor: ActorMonitor,
 }
 
 impl<E: Event, T: Topic<E>> fmt::Debug for ActorSpy<E, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let lifecycle = if self.is_running() {
+            "running"
+        } else if self.is_stopped() {
+            "stopped"
+        } else {
+            "unknown"
+        };
         f.debug_struct("ActorSpy")
             .field("actor", &self.actor)
+            .field("lifecycle", &lifecycle)
             .field("inbound", &self.inbound)
             .field("outbound", &self.outbound)
             .finish()
@@ -29,7 +38,11 @@ impl<E: Event, T: Topic<E>> fmt::Debug for ActorSpy<E, T> {
 }
 
 impl<E: Event, T: Topic<E>> ActorSpy<E, T> {
-    pub(crate) fn new(records: EventRecords<E, T>, actor: ActorId) -> Self {
+    pub(crate) fn new(
+        records: EventRecords<E, T>,
+        actor: ActorId,
+        actor_monitor: ActorMonitor,
+    ) -> Self {
         let inbound = EventQuery::new(records.clone()).received_by(&actor);
         let outbound = EventQuery::new(records).sent_by(&actor);
 
@@ -37,7 +50,26 @@ impl<E: Event, T: Topic<E>> ActorSpy<E, T> {
             actor,
             inbound,
             outbound,
+            actor_monitor,
         }
+    }
+
+    // ==================== Lifecycle ====================
+
+    /// Returns `true` if this actor is currently running.
+    ///
+    /// An actor is running if it has been registered with the supervisor
+    /// and has not yet stopped.
+    pub fn is_running(&self) -> bool {
+        self.actor_monitor.is_alive(&self.actor)
+    }
+
+    /// Returns `true` if this actor was registered and has since stopped.
+    ///
+    /// Returns `false` for actors that were never registered or are still
+    /// running.
+    pub fn is_stopped(&self) -> bool {
+        self.actor_monitor.is_stopped(&self.actor)
     }
 
     // ==================== Inbound (events received by this actor) ====================
@@ -124,7 +156,9 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::{ActorId, DefaultTopic, Envelope, Event};
+    use crate::{
+        ActorId, DefaultTopic, Envelope, Event, monitoring::Monitor, monitors::ActorMonitor,
+    };
 
     #[derive(Clone, Debug)]
     struct TestEvent(i32);
@@ -170,21 +204,33 @@ mod tests {
     #[test]
     fn inbound_returns_events_received_by_actor() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         assert_eq!(spy.inbound().count(), 2); // received from bob and charlie
     }
 
     #[test]
     fn events_received_returns_received_event_count() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.bob);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.bob,
+            ActorMonitor::new(),
+        );
         assert_eq!(spy.events_received(), 1); // received from alice
     }
 
     #[test]
     fn last_received_returns_most_recent_inbound() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         let last = spy.last_received().unwrap();
         assert_eq!(last.payload().0, 4); // from charlie
     }
@@ -193,14 +239,22 @@ mod tests {
     fn last_received_returns_none_when_no_inbound() {
         let actors = TestActors::new();
         let unknown = ActorId::new("unknown");
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), unknown);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            unknown,
+            ActorMonitor::new(),
+        );
         assert!(spy.last_received().is_none());
     }
 
     #[test]
     fn received_from_returns_unique_senders() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         let senders = spy.received_from();
         assert_eq!(senders.len(), 2);
         assert!(senders.iter().any(|s| s.as_str() == "bob"));
@@ -210,7 +264,11 @@ mod tests {
     #[test]
     fn sender_count_returns_unique_sender_count() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         assert_eq!(spy.sender_count(), 2);
     }
 
@@ -219,14 +277,22 @@ mod tests {
     #[test]
     fn outbound_returns_events_sent_by_actor() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         assert_eq!(spy.outbound().count(), 2); // sent to bob and charlie
     }
 
     #[test]
     fn events_sent_returns_unique_event_count() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         // 2 distinct events sent (different IDs)
         assert_eq!(spy.events_sent(), 2);
     }
@@ -244,7 +310,7 @@ mod tests {
             EventEntry::new(envelope, topic, charlie),
         ]);
 
-        let spy = ActorSpy::new(records, alice);
+        let spy = ActorSpy::new(records, alice, ActorMonitor::new());
         // Only 1 unique event sent, even though delivered to 2 actors
         assert_eq!(spy.events_sent(), 1);
     }
@@ -252,7 +318,11 @@ mod tests {
     #[test]
     fn last_sent_returns_most_recent_outbound() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         let last = spy.last_sent().unwrap();
         assert_eq!(last.payload().0, 2); // to charlie
     }
@@ -261,14 +331,22 @@ mod tests {
     fn last_sent_returns_none_when_no_outbound() {
         let actors = TestActors::new();
         let unknown = ActorId::new("unknown");
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), unknown);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            unknown,
+            ActorMonitor::new(),
+        );
         assert!(spy.last_sent().is_none());
     }
 
     #[test]
     fn sent_to_returns_unique_receivers() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         let receivers = spy.sent_to();
         assert_eq!(receivers.len(), 2);
         assert!(receivers.iter().any(|r| r.as_str() == "bob"));
@@ -278,7 +356,11 @@ mod tests {
     #[test]
     fn receiver_count_returns_unique_receiver_count() {
         let actors = TestActors::new();
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), actors.alice);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            actors.alice,
+            ActorMonitor::new(),
+        );
         assert_eq!(spy.receiver_count(), 2);
     }
 
@@ -286,10 +368,63 @@ mod tests {
     fn actor_with_no_activity_has_zero_counts() {
         let actors = TestActors::new();
         let unknown = ActorId::new("unknown");
-        let spy = ActorSpy::new(sample_records_with_actors(&actors), unknown);
+        let spy = ActorSpy::new(
+            sample_records_with_actors(&actors),
+            unknown,
+            ActorMonitor::new(),
+        );
         assert_eq!(spy.events_received(), 0);
         assert_eq!(spy.events_sent(), 0);
         assert_eq!(spy.sender_count(), 0);
         assert_eq!(spy.receiver_count(), 0);
+    }
+
+    // ==================== Lifecycle Tests ====================
+
+    #[test]
+    fn is_running_returns_true_for_active_actor() {
+        let monitor = ActorMonitor::new();
+        let alice = ActorId::new("alice");
+        let m: &dyn Monitor<TestEvent, DefaultTopic> = &monitor;
+        m.on_actor_registered(&alice);
+
+        let spy = ActorSpy::new(
+            Arc::new(Vec::<EventEntry<TestEvent, DefaultTopic>>::new()),
+            alice,
+            monitor,
+        );
+        assert!(spy.is_running());
+        assert!(!spy.is_stopped());
+    }
+
+    #[test]
+    fn is_stopped_returns_true_after_actor_stops() {
+        let monitor = ActorMonitor::new();
+        let alice = ActorId::new("alice");
+        let m: &dyn Monitor<TestEvent, DefaultTopic> = &monitor;
+        m.on_actor_registered(&alice);
+        m.on_actor_stop(&alice);
+
+        let spy = ActorSpy::new(
+            Arc::new(Vec::<EventEntry<TestEvent, DefaultTopic>>::new()),
+            alice,
+            monitor,
+        );
+        assert!(!spy.is_running());
+        assert!(spy.is_stopped());
+    }
+
+    #[test]
+    fn unknown_actor_is_neither_running_nor_stopped() {
+        let monitor = ActorMonitor::new();
+        let unknown = ActorId::new("unknown");
+
+        let spy = ActorSpy::new(
+            Arc::new(Vec::<EventEntry<TestEvent, DefaultTopic>>::new()),
+            unknown,
+            monitor,
+        );
+        assert!(!spy.is_running());
+        assert!(!spy.is_stopped());
     }
 }
