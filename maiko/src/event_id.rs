@@ -8,7 +8,7 @@ use uuid::Uuid;
 /// for ordering.
 ///
 /// `EventId` is `Copy` and cheap to pass around. Use [`Display`](std::fmt::Display)
-/// to get the UUID string representation, or [`value()`](Self::value) for the raw `u128`.
+/// to get the UUID string representation, or [`as_u128()`](Self::as_u128) for the raw `u128`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, hash::Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]

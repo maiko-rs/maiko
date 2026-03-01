@@ -4,7 +4,7 @@
 //!
 //! ```toml
 //! [dev-dependencies]
-//! maiko = { version = "0.2", features = ["test-harness"] }
+//! maiko = { version = "0.3", features = ["test-harness"] }
 //! ```
 //!
 //! # Example

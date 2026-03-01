@@ -218,6 +218,11 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     ///
     /// Returns the event ID which can be used with [`event`](Self::event) to
     /// inspect delivery.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the
+    /// broker channel has been closed (e.g., after supervisor shutdown).
     pub async fn send_as<IE: Into<IntoEnvelope<E>>>(
         &self,
         actor_id: &ActorId,

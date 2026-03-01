@@ -63,6 +63,7 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
 
 impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// Create a new supervisor with the given runtime configuration.
+    #[must_use]
     pub fn new(config: SupervisorConfig) -> Self {
         let config = Arc::new(config);
         let (tx, rx) = channel::<Arc<Envelope<E>>>(config.broker_channel_capacity());

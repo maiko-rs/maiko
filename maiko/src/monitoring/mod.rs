@@ -4,7 +4,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! maiko = { version = "0.2", features = ["monitoring"] }
+//! maiko = { version = "0.3", features = ["monitoring"] }
 //! ```
 //!
 //! # Overview

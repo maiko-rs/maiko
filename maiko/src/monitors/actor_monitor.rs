@@ -31,6 +31,7 @@ struct ActorMonitorInner {
 
 impl ActorMonitor {
     /// Create a new `ActorMonitor`.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(ActorMonitorInner {

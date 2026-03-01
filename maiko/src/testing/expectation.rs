@@ -49,6 +49,7 @@ where
     }
 
     /// Override the default 1-second timeout.
+    #[must_use]
     pub fn within(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self

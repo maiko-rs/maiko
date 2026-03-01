@@ -1,4 +1,4 @@
-# [0.3.0](https://github.com/maiko-rs/maiko/compare/v0.2.6...v0.3.0) (unreleased)
+# [0.3.0](https://github.com/maiko-rs/maiko/compare/v0.2.6...v0.3.0) (March 1st, 2026)
 
 **Breaking changes** - API cleanup guided by the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/).
 
@@ -11,8 +11,8 @@
 - `Error::external()` helper for wrapping errors into `Error::External` ([#95])
 - `ActorId`: `From<&str>`, `From<String>`, `AsRef<str>` impls ([#89], [#95])
 - `Drop` impl for `MonitorRegistry` for safety-net cleanup ([#95])
-- `ActorSpy::is_running()` / `is_stopped()` for actor lifecycle assertions in tests
-- `ActorMonitor::is_stopped()` method (complements `is_alive()`)
+- `ActorSpy::is_running()` / `is_stopped()` for actor lifecycle assertions in tests ([#98])
+- `ActorMonitor::is_stopped()` method (complements `is_alive()`) ([#98])
 
 ### Changed
 
@@ -53,6 +53,7 @@
 [#92]: https://github.com/maiko-rs/maiko/issues/92
 [#93]: https://github.com/maiko-rs/maiko/pull/93
 [#95]: https://github.com/maiko-rs/maiko/pull/95
+[#98]: https://github.com/maiko-rs/maiko/pull/98
 
 ---
 

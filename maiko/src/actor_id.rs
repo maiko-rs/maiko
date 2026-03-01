@@ -38,6 +38,7 @@ pub struct ActorId(Arc<str>);
 
 impl ActorId {
     /// Create an actor ID from a string name.
+    #[must_use]
     pub fn new(id: &str) -> Self {
         Self(Arc::from(id))
     }

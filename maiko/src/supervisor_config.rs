@@ -50,6 +50,7 @@ impl Default for SupervisorConfig {
 
 impl SupervisorConfig {
     /// Set the per-actor channel capacity for stage 1 (actor to broker).
+    #[must_use]
     pub fn with_broker_channel_capacity(mut self, capacity: usize) -> Self {
         self.broker_channel_capacity = capacity;
         self
@@ -71,6 +72,7 @@ impl SupervisorConfig {
     /// - Higher values (50-100): Better throughput, potential starvation of `step()`
     ///
     /// [`Actor::step`]: crate::Actor::step
+    #[must_use]
     pub fn with_default_max_events_per_tick(mut self, limit: usize) -> Self {
         self.default_max_events_per_tick = limit;
         self
@@ -82,6 +84,7 @@ impl SupervisorConfig {
     }
 
     /// Set the buffer size for the monitoring event channel.
+    #[must_use]
     pub fn with_monitoring_channel_capacity(mut self, capacity: usize) -> Self {
         self.monitoring_channel_capacity = capacity;
         self
@@ -93,6 +96,7 @@ impl SupervisorConfig {
     }
 
     /// Set the default mailbox channel capacity for new actors (stage 2).
+    #[must_use]
     pub fn with_default_actor_channel_capacity(mut self, capacity: usize) -> Self {
         self.default_actor_channel_capacity = capacity;
         self

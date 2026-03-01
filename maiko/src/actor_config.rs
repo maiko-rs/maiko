@@ -39,6 +39,7 @@ pub struct ActorConfig {
 
 impl ActorConfig {
     /// Create a new config inheriting defaults from the global [`SupervisorConfig`].
+    #[must_use]
     pub fn new(global_config: &SupervisorConfig) -> Self {
         Self {
             channel_capacity: global_config.default_actor_channel_capacity(),
@@ -50,6 +51,7 @@ impl ActorConfig {
     ///
     /// This is the number of events that can be queued for this actor
     /// before the broker's overflow policy takes effect.
+    #[must_use]
     pub fn with_channel_capacity(mut self, channel_capacity: usize) -> Self {
         self.channel_capacity = channel_capacity;
         self
@@ -64,6 +66,7 @@ impl ActorConfig {
     ///
     /// After processing this many events, the actor yields to allow other
     /// tasks to run and to call [`Actor::step`](crate::Actor::step).
+    #[must_use]
     pub fn with_max_events_per_tick(mut self, max_events: usize) -> Self {
         self.max_events_per_tick = max_events;
         self

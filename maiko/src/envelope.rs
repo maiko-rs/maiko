@@ -23,6 +23,7 @@ pub struct Envelope<E> {
 
 impl<E> Envelope<E> {
     /// Create a new envelope tagging the event with the given actor name.
+    #[must_use]
     pub fn new(event: E, actor_id: ActorId) -> Self {
         Self {
             meta: Meta::new(actor_id, None),
@@ -35,6 +36,7 @@ impl<E> Envelope<E> {
     /// Prefer [`Context::send_child_event`](crate::Context::send_child_event) which
     /// sets this automatically. Use `with_parent_id` directly only when constructing
     /// envelopes outside the normal actor context (e.g., in test setup or bridges).
+    #[must_use]
     pub fn with_parent_id(mut self, parent_id: EventId) -> Self {
         self.meta.set_parent(parent_id);
         self
