@@ -102,23 +102,26 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
             (active, t)
         };
 
-        let subscriber_actor_ids = self
+        let subscribers = self
             .subscribers_by_topic
             .get(&topic)
             .into_iter()
             .flatten()
-            .chain(self.subscribers_for_all.iter());
+            .chain(self.subscribers_for_all.iter())
+            .filter_map(|actor_id| {
+                let subscriber = self.subscribers.get(actor_id);
+                if subscriber.is_none() {
+                    // Generally, this must not happen.
+                    // If it does, the indexing behaviour is flawed.
+                    debug_assert!(subscriber.is_some(), "Indexing is flawed. Actor id {actor_id} is indexed, but there is no corresponding subscriber");
+                    warn!("Actor id {actor_id} is indexed, but there is no corresponding subscriber");
+                }
+                subscriber
+            })
+            .filter(|s| !s.is_closed())
+            .filter(|s| s.actor_id != *e.meta().actor_id());
 
-        for (actor_id, subscriber) in
-            subscriber_actor_ids.map(|actor_id| (actor_id, self.subscribers.get(actor_id)))
-        {
-            let Some(subscriber) = subscriber else {
-                // Generally, this must not happen.
-                // If it does, the indexing behaviour is flawed.
-                warn!("Actor id {actor_id} is indexed, but has no corresponding subscriber");
-                continue;
-            };
-
+        for subscriber in subscribers {
             match subscriber.sender.try_send(e.clone()) {
                 Ok(_) => {
                     #[cfg(feature = "monitoring")]

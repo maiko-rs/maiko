@@ -18,6 +18,7 @@ use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
 };
+use tracing::warn;
 
 const TOPIC_COUNT: usize = 32;
 const TOPICS_PER_SUBSCRIBER: usize = 3;
@@ -60,16 +61,22 @@ impl<T: Eq + Hash> Subscription<T> {
 struct Subscriber<E: Event, T: Topic<E>> {
     actor_id: ActorId,
     topics: Subscription<T>,
+    closed: bool,
     _event: PhantomData<E>,
 }
 
 impl<E: Event, T: Topic<E>> Subscriber<E, T> {
-    fn new(actor_id: ActorId, topics: Subscription<T>) -> Self {
+    fn new(actor_id: ActorId, topics: Subscription<T>, closed: bool) -> Self {
         Self {
             actor_id,
             topics,
+            closed,
             _event: PhantomData,
         }
+    }
+
+    fn is_closed(&self) -> bool {
+        self.closed
     }
 }
 
@@ -94,6 +101,8 @@ impl<E: Event, T: Topic<E>> BrokerVec<E, T> {
         self.subscribers
             .iter()
             .filter(|subscriber| subscriber.topics.contains(&topic))
+            .filter(|subscriber| !subscriber.is_closed())
+            .filter(|subscriber| subscriber.actor_id != *e.meta().actor_id())
             .count()
     }
 }
@@ -134,23 +143,25 @@ impl<E: Event, T: Topic<E>> BrokerHashMap<E, T> {
 
     fn fetch_subscribers(&self, e: &Envelope<E>) -> usize {
         let topic = T::from_event(e.event());
-        let mut count = 0usize;
 
-        if let Some(actor_ids) = self.subscribers_by_topic.get(&topic) {
-            for actor_id in actor_ids {
-                if self.subscribers.contains_key(actor_id) {
-                    count += 1;
+        self.subscribers_by_topic
+            .get(&topic)
+            .into_iter()
+            .flatten()
+            .chain(self.subscribers_for_all.iter())
+            .filter_map(|actor_id| {
+                let subscriber = self.subscribers.get(actor_id);
+                if subscriber.is_none() {
+                    // Generally, this must not happen.
+                    // If it does, the indexing behaviour is flawed.
+                    debug_assert!(subscriber.is_some(), "Indexing is flawed. Actor id {actor_id} is indexed, but there is no corresponding subscriber");
+                    warn!("Actor id {actor_id} is indexed, but there is no corresponding subscriber");
                 }
-            }
-        }
-
-        for actor_id in &self.subscribers_for_all {
-            if self.subscribers.contains_key(actor_id) {
-                count += 1;
-            }
-        }
-
-        count
+                subscriber
+            })
+            .filter(|subscriber| !subscriber.is_closed())
+            .filter(|subscriber| subscriber.actor_id != *e.meta().actor_id())
+            .count()
     }
 }
 
@@ -183,21 +194,22 @@ fn build_fictional_brokers(
     for subscriber_index in 0..subscriber_count {
         let actor_id = ActorId::from(format!("actor-{subscriber_index}"));
         let topics = create_subscription(subscriber_index);
-        let subscriber = Subscriber::<BenchEvent, BenchTopic>::new(actor_id, topics);
+        let closed = subscriber_index % 17 == 0;
+        let subscriber = Subscriber::<BenchEvent, BenchTopic>::new(actor_id, topics, closed);
 
         broker_vec.add_subscriber(subscriber.clone());
         broker_hash_map.add_subscriber(subscriber);
     }
 
-    let source = ActorId::new("benchmark-source");
     let envelopes = (0..TOPIC_COUNT)
         .map(|topic| {
+            let sender = ActorId::from(format!("actor-{}", topic % subscriber_count.max(1)));
             Envelope::new(
                 BenchEvent {
                     topic: BenchTopic(topic as u16),
                     _payload: topic as u64,
                 },
-                source.clone(),
+                sender,
             )
         })
         .collect::<Vec<_>>();
