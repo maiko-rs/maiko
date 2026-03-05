@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Install cargo-spellcheck
+        run: cargo install cargo-spellcheck
+
+      - name: Run CI
+        run: just ci
