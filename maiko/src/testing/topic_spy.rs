@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    ActorId, Event, Topic,
+    ActorId, Topic,
     testing::{EventQuery, EventRecords},
 };
 
@@ -10,11 +10,11 @@ use crate::{
 /// Provides methods to inspect:
 /// - Whether events were published to this topic
 /// - Which actors received events on this topic
-pub struct TopicSpy<E: Event, T: Topic<E>> {
-    query: EventQuery<E, T>,
+pub struct TopicSpy<T: Topic> {
+    query: EventQuery<T>,
 }
 
-impl<E: Event, T: Topic<E>> fmt::Debug for TopicSpy<E, T> {
+impl<T: Topic> fmt::Debug for TopicSpy<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TopicSpy")
             .field("query", &self.query)
@@ -22,8 +22,8 @@ impl<E: Event, T: Topic<E>> fmt::Debug for TopicSpy<E, T> {
     }
 }
 
-impl<E: Event, T: Topic<E>> TopicSpy<E, T> {
-    pub(crate) fn new(records: EventRecords<E, T>, topic: T) -> Self {
+impl<T: Topic> TopicSpy<T> {
+    pub(crate) fn new(records: EventRecords<T>, topic: T) -> Self {
         Self {
             query: EventQuery::new(records).with_topic(topic),
         }
@@ -58,7 +58,7 @@ impl<E: Event, T: Topic<E>> TopicSpy<E, T> {
     }
 
     /// Returns a query for further filtering events on this topic.
-    pub fn events(&self) -> EventQuery<E, T> {
+    pub fn events(&self) -> EventQuery<T> {
         self.query.clone()
     }
 }
@@ -81,7 +81,9 @@ mod tests {
         Control,
     }
 
-    impl Topic<TestEvent> for TestTopic {
+    impl Topic for TestTopic {
+        type Event = TestEvent;
+
         fn from_event(event: &TestEvent) -> Self {
             if event.0 < 100 {
                 TestTopic::Data
@@ -107,17 +109,13 @@ mod tests {
         }
     }
 
-    fn make_entry(
-        event: TestEvent,
-        sender: &ActorId,
-        receiver: &ActorId,
-    ) -> EventEntry<TestEvent, TestTopic> {
+    fn make_entry(event: TestEvent, sender: &ActorId, receiver: &ActorId) -> EventEntry<TestTopic> {
         let topic = Arc::new(TestTopic::from_event(&event));
         let envelope = Arc::new(Envelope::new(event, sender.clone()));
         EventEntry::new(envelope, topic, receiver.clone())
     }
 
-    fn sample_records_with_actors(actors: &TestActors) -> EventRecords<TestEvent, TestTopic> {
+    fn sample_records_with_actors(actors: &TestActors) -> EventRecords<TestTopic> {
         Arc::new(vec![
             make_entry(TestEvent(1), &actors.alice, &actors.bob), // Data
             make_entry(TestEvent(2), &actors.alice, &actors.charlie), // Data
@@ -136,7 +134,7 @@ mod tests {
     #[test]
     fn was_published_returns_false_when_no_events() {
         let actors = TestActors::new();
-        let records: EventRecords<TestEvent, TestTopic> = Arc::new(vec![
+        let records: EventRecords<TestTopic> = Arc::new(vec![
             make_entry(TestEvent(100), &actors.alice, &actors.bob), // Only Control
         ]);
         let spy = TopicSpy::new(records, TestTopic::Data);
@@ -197,7 +195,7 @@ mod tests {
 
     #[test]
     fn empty_topic_has_zero_counts() {
-        let records: EventRecords<TestEvent, TestTopic> = Arc::new(vec![]);
+        let records: EventRecords<TestTopic> = Arc::new(vec![]);
         let spy = TopicSpy::new(records, TestTopic::Data);
 
         assert!(!spy.was_published());

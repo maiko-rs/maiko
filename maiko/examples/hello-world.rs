@@ -24,7 +24,7 @@ impl Actor for Greeter {
 
 #[tokio::main]
 async fn main() -> Result {
-    let mut sup = Supervisor::<MyEvent>::default();
+    let mut sup = Supervisor::<DefaultTopic<MyEvent>>::default();
 
     // Add actor and subscribe it to all topics
     sup.add_actor("greeter", |_ctx| Greeter, Subscribe::all())?;

@@ -4,11 +4,11 @@ use std::borrow::Cow;
 use std::fmt;
 use std::rc::Rc;
 
-use crate::{Event, EventId, Label, Topic};
+use crate::{EventId, Label, Topic};
 
 use super::EventEntry;
 
-type MatchFn<E, T> = Rc<dyn Fn(&EventEntry<E, T>) -> bool>;
+type MatchFn<T> = Rc<dyn Fn(&EventEntry<T>) -> bool>;
 
 /// A matcher for filtering events in chain queries.
 ///
@@ -34,17 +34,17 @@ type MatchFn<E, T> = Rc<dyn Fn(&EventEntry<E, T>) -> bool>;
 /// // Match by entry predicate (full access to metadata)
 /// let matcher = EventMatcher::by_entry(|e| e.sender() == "scanner");
 /// ```
-pub struct EventMatcher<E: Event, T: Topic<E>> {
-    matcher: MatchFn<E, T>,
+pub struct EventMatcher<T: Topic> {
+    matcher: MatchFn<T>,
 }
 
-impl<E: Event, T: Topic<E>> fmt::Debug for EventMatcher<E, T> {
+impl<T: Topic> fmt::Debug for EventMatcher<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EventMatcher").finish_non_exhaustive()
     }
 }
 
-impl<E: Event, T: Topic<E>> EventMatcher<E, T> {
+impl<T: Topic> EventMatcher<T> {
     /// Match events by their unique ID.
     pub fn by_id(id: EventId) -> Self {
         Self {
@@ -55,7 +55,7 @@ impl<E: Event, T: Topic<E>> EventMatcher<E, T> {
     /// Match events using a custom predicate on the event entry.
     pub fn by_entry<F>(predicate: F) -> Self
     where
-        F: Fn(&EventEntry<E, T>) -> bool + 'static,
+        F: Fn(&EventEntry<T>) -> bool + 'static,
     {
         Self {
             matcher: Rc::new(predicate),
@@ -65,7 +65,7 @@ impl<E: Event, T: Topic<E>> EventMatcher<E, T> {
     /// Match events using a custom predicate on the event payload.
     pub fn by_event<F>(predicate: F) -> Self
     where
-        F: Fn(&E) -> bool + 'static,
+        F: Fn(&T::Event) -> bool + 'static,
     {
         Self {
             matcher: Rc::new(move |entry| predicate(entry.payload())),
@@ -73,12 +73,15 @@ impl<E: Event, T: Topic<E>> EventMatcher<E, T> {
     }
 
     /// Returns true if the given entry matches this matcher.
-    pub(crate) fn matches(&self, entry: &EventEntry<E, T>) -> bool {
+    pub(crate) fn matches(&self, entry: &EventEntry<T>) -> bool {
         (self.matcher)(entry)
     }
 }
 
-impl<E: Event + Label, T: Topic<E>> EventMatcher<E, T> {
+impl<T: Topic> EventMatcher<T>
+where
+    T::Event: Label,
+{
     /// Match events by their label (variant name for enums).
     ///
     /// Requires the event type to implement `Label`.
@@ -91,21 +94,27 @@ impl<E: Event + Label, T: Topic<E>> EventMatcher<E, T> {
 }
 
 // Allow &str to be used directly as a label matcher
-impl<E: Event + Label, T: Topic<E>> From<&'static str> for EventMatcher<E, T> {
+impl<T: Topic> From<&'static str> for EventMatcher<T>
+where
+    T::Event: Label,
+{
     fn from(label: &'static str) -> Self {
         EventMatcher::by_label(label)
     }
 }
 
 // Allow String to be used as a label matcher
-impl<E: Event + Label, T: Topic<E>> From<String> for EventMatcher<E, T> {
+impl<T: Topic> From<String> for EventMatcher<T>
+where
+    T::Event: Label,
+{
     fn from(label: String) -> Self {
         EventMatcher::by_label(label)
     }
 }
 
 // Allow EventId to be used directly as an id matcher
-impl<E: Event, T: Topic<E>> From<EventId> for EventMatcher<E, T> {
+impl<T: Topic> From<EventId> for EventMatcher<T> {
     fn from(id: EventId) -> Self {
         EventMatcher::by_id(id)
     }
@@ -114,7 +123,7 @@ impl<E: Event, T: Topic<E>> From<EventId> for EventMatcher<E, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ActorId, DefaultTopic, Envelope};
+    use crate::{ActorId, DefaultTopic, Envelope, Event};
     use std::sync::Arc;
 
     #[derive(Clone, Debug)]
@@ -135,20 +144,20 @@ mod tests {
         }
     }
 
-    fn make_entry(event: TestEvent) -> EventEntry<TestEvent, DefaultTopic> {
+    fn make_entry(event: TestEvent) -> EventEntry<DefaultTopic<TestEvent>> {
         let sender = ActorId::new("sender");
         let receiver = ActorId::new("receiver");
         let envelope = Arc::new(Envelope::new(event, sender));
-        EventEntry::new(envelope, Arc::new(DefaultTopic), receiver)
+        EventEntry::new(envelope, Arc::new(DefaultTopic::new()), receiver)
     }
 
     #[test]
     fn label_matcher_matches_by_name() {
         let entry = make_entry(TestEvent::Ping);
-        let matcher: EventMatcher<TestEvent, DefaultTopic> = EventMatcher::by_label("Ping");
+        let matcher: EventMatcher<DefaultTopic<TestEvent>> = EventMatcher::by_label("Ping");
         assert!(matcher.matches(&entry));
 
-        let matcher: EventMatcher<TestEvent, DefaultTopic> = EventMatcher::by_label("Pong");
+        let matcher: EventMatcher<DefaultTopic<TestEvent>> = EventMatcher::by_label("Pong");
         assert!(!matcher.matches(&entry));
     }
 
@@ -178,7 +187,7 @@ mod tests {
     #[test]
     fn from_str_creates_label_matcher() {
         let entry = make_entry(TestEvent::Ping);
-        let matcher: EventMatcher<TestEvent, DefaultTopic> = "Ping".into();
+        let matcher: EventMatcher<DefaultTopic<TestEvent>> = "Ping".into();
         assert!(matcher.matches(&entry));
     }
 }

@@ -61,7 +61,7 @@ The harness lets you:
 ```rust
 #[tokio::test]
 async fn test_temperature_alert() -> Result {
-    let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
+    let mut sup = Supervisor::<WeatherTopic>::default();
 
     let sensor = sup.add_actor("sensor", |ctx| TempSensor::new(ctx), Subscribe::none())?;
     let alert = sup.add_actor("alert", |ctx| AlertMonitor::new(ctx), &[WeatherTopic::Reading])?;

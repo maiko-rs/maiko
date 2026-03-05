@@ -3,11 +3,11 @@ use std::fmt;
 use std::rc::Rc;
 
 use crate::{
-    ActorId, Event, EventId, Label, Topic,
+    ActorId, EventId, Label, Topic,
     testing::{EventEntry, EventMatcher, EventRecords},
 };
 
-type Filter<E, T> = Rc<dyn Fn(&EventEntry<E, T>) -> bool>;
+type Filter<T> = Rc<dyn Fn(&EventEntry<T>) -> bool>;
 
 /// A composable query builder for filtering and inspecting recorded events.
 ///
@@ -25,12 +25,12 @@ type Filter<E, T> = Rc<dyn Fn(&EventEntry<E, T>) -> bool>;
 ///     .count();
 /// ```
 #[derive(Clone)]
-pub struct EventQuery<E: Event, T: Topic<E>> {
-    events: EventRecords<E, T>,
-    filters: Vec<Filter<E, T>>,
+pub struct EventQuery<T: Topic> {
+    events: EventRecords<T>,
+    filters: Vec<Filter<T>>,
 }
 
-impl<E: Event, T: Topic<E>> fmt::Debug for EventQuery<E, T> {
+impl<T: Topic> fmt::Debug for EventQuery<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EventQuery")
             .field("records", &self.events.len())
@@ -39,8 +39,8 @@ impl<E: Event, T: Topic<E>> fmt::Debug for EventQuery<E, T> {
     }
 }
 
-impl<E: Event, T: Topic<E>> EventQuery<E, T> {
-    pub(crate) fn new(events: EventRecords<E, T>) -> Self {
+impl<T: Topic> EventQuery<T> {
+    pub(crate) fn new(events: EventRecords<T>) -> Self {
         Self {
             events,
             filters: Vec::new(),
@@ -49,12 +49,12 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
 
     fn add_filter<F>(&mut self, filter: F)
     where
-        F: Fn(&EventEntry<E, T>) -> bool + 'static,
+        F: Fn(&EventEntry<T>) -> bool + 'static,
     {
         self.filters.push(Rc::new(filter));
     }
 
-    fn apply_filters(&self) -> Vec<&EventEntry<E, T>> {
+    fn apply_filters(&self) -> Vec<&EventEntry<T>> {
         self.events
             .iter()
             .filter(|e| self.filters.iter().all(|f| f(e)))
@@ -79,17 +79,17 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     }
 
     /// Returns the first matching event, if any.
-    pub fn first(&self) -> Option<EventEntry<E, T>> {
+    pub fn first(&self) -> Option<EventEntry<T>> {
         self.apply_filters().first().cloned().cloned()
     }
 
     /// Returns the last matching event, if any.
-    pub fn last(&self) -> Option<EventEntry<E, T>> {
+    pub fn last(&self) -> Option<EventEntry<T>> {
         self.apply_filters().last().cloned().cloned()
     }
 
     /// Returns the nth matching event (0-indexed), if any.
-    pub fn nth(&self, index: usize) -> Option<EventEntry<E, T>> {
+    pub fn nth(&self, index: usize) -> Option<EventEntry<T>> {
         self.apply_filters().get(index).cloned().cloned()
     }
 
@@ -97,7 +97,7 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     ///
     /// When the same event is delivered to multiple actors, this returns
     /// only one entry per event ID, preserving the order of first occurrence.
-    pub fn collect(&self) -> Vec<EventEntry<E, T>> {
+    pub fn collect(&self) -> Vec<EventEntry<T>> {
         let mut seen = HashSet::new();
         self.apply_filters()
             .into_iter()
@@ -110,7 +110,7 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     ///
     /// Unlike `collect()`, this includes every delivery of the same event
     /// to different actors.
-    pub fn all_deliveries(&self) -> Vec<EventEntry<E, T>> {
+    pub fn all_deliveries(&self) -> Vec<EventEntry<T>> {
         self.apply_filters().into_iter().cloned().collect()
     }
 
@@ -159,7 +159,7 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     /// Returns a count of matching events grouped by label.
     pub fn count_by_label(&self) -> HashMap<String, usize>
     where
-        E: Label,
+        T::Event: Label,
     {
         let mut counts = HashMap::new();
         for entry in self.apply_filters() {
@@ -171,17 +171,17 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     }
 
     /// Returns true if all matching events satisfy the predicate.
-    pub fn all(&self, predicate: impl Fn(&EventEntry<E, T>) -> bool) -> bool {
+    pub fn all(&self, predicate: impl Fn(&EventEntry<T>) -> bool) -> bool {
         self.apply_filters().into_iter().all(predicate)
     }
 
     /// Returns true if any matching event satisfies the predicate.
-    pub fn any(&self, predicate: impl Fn(&EventEntry<E, T>) -> bool) -> bool {
+    pub fn any(&self, predicate: impl Fn(&EventEntry<T>) -> bool) -> bool {
         self.apply_filters().into_iter().any(predicate)
     }
 
     /// Returns an iterator over references to matching events.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &EventEntry<E, T>> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &EventEntry<T>> {
         self.apply_filters().into_iter()
     }
 
@@ -191,7 +191,7 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     ///
     /// Accepts anything that converts to `EventMatcher`: `&str` or `String`
     /// (by label, requires `E: Label`), `EventId`, or `EventMatcher` directly.
-    pub fn has_event(&self, matcher: impl Into<EventMatcher<E, T>>) -> bool {
+    pub fn has_event(&self, matcher: impl Into<EventMatcher<T>>) -> bool {
         let matcher = matcher.into();
         self.clone()
             .matching(move |entry| matcher.matches(entry))
@@ -209,7 +209,7 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     }
 
     /// Returns true if any matching event satisfies the predicate.
-    pub fn has(&self, predicate: impl Fn(&EventEntry<E, T>) -> bool + 'static) -> bool {
+    pub fn has(&self, predicate: impl Fn(&EventEntry<T>) -> bool + 'static) -> bool {
         self.clone().matching(predicate).exists()
     }
 
@@ -245,7 +245,7 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     /// Filter using a custom predicate on the event entry.
     pub fn matching<F>(mut self, predicate: F) -> Self
     where
-        F: Fn(&EventEntry<E, T>) -> bool + 'static,
+        F: Fn(&EventEntry<T>) -> bool + 'static,
     {
         self.add_filter(predicate);
         self
@@ -265,21 +265,21 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     /// ```
     pub fn matching_event<F>(mut self, predicate: F) -> Self
     where
-        F: Fn(&E) -> bool + 'static,
+        F: Fn(&T::Event) -> bool + 'static,
     {
         self.add_filter(move |entry| predicate(entry.payload()));
         self
     }
 
     /// Filter to events occurring after the given event (by timestamp).
-    pub fn after(mut self, event: &EventEntry<E, T>) -> Self {
+    pub fn after(mut self, event: &EventEntry<T>) -> Self {
         let timestamp = event.meta().timestamp();
         self.add_filter(move |e| e.meta().timestamp() > timestamp);
         self
     }
 
     /// Filter to events occurring before the given event (by timestamp).
-    pub fn before(mut self, event: &EventEntry<E, T>) -> Self {
+    pub fn before(mut self, event: &EventEntry<T>) -> Self {
         let timestamp = event.meta().timestamp();
         self.add_filter(move |e| e.meta().timestamp() < timestamp);
         self
@@ -297,7 +297,7 @@ impl<E: Event, T: Topic<E>> EventQuery<E, T> {
     /// Requires the event type to implement `Label`.
     pub fn with_label(self, label: impl Into<std::borrow::Cow<'static, str>>) -> Self
     where
-        E: Label,
+        T::Event: Label,
     {
         let name: std::borrow::Cow<'static, str> = label.into();
         self.matching(move |entry| entry.payload().label() == name)
@@ -350,12 +350,12 @@ mod tests {
         event: TestEvent,
         sender: &ActorId,
         receiver: &ActorId,
-    ) -> EventEntry<TestEvent, DefaultTopic> {
+    ) -> EventEntry<DefaultTopic<TestEvent>> {
         let envelope = Arc::new(Envelope::new(event, sender.clone()));
-        EventEntry::new(envelope, Arc::new(DefaultTopic), receiver.clone())
+        EventEntry::new(envelope, Arc::new(DefaultTopic::new()), receiver.clone())
     }
 
-    fn sample_records_with_actors(actors: &TestActors) -> EventRecords<TestEvent, DefaultTopic> {
+    fn sample_records_with_actors(actors: &TestActors) -> EventRecords<DefaultTopic<TestEvent>> {
         Arc::new(vec![
             make_entry(TestEvent::Ping, &actors.alice, &actors.bob),
             make_entry(TestEvent::Pong, &actors.bob, &actors.alice),
@@ -381,7 +381,7 @@ mod tests {
 
     #[test]
     fn is_empty_returns_true_for_empty_records() {
-        let query: EventQuery<TestEvent, DefaultTopic> = EventQuery::new(Arc::new(vec![]));
+        let query: EventQuery<DefaultTopic<TestEvent>> = EventQuery::new(Arc::new(vec![]));
         assert!(query.is_empty());
     }
 
@@ -447,7 +447,8 @@ mod tests {
     #[test]
     fn with_topic_filters_by_topic() {
         let actors = TestActors::new();
-        let query = EventQuery::new(sample_records_with_actors(&actors)).with_topic(DefaultTopic);
+        let query =
+            EventQuery::new(sample_records_with_actors(&actors)).with_topic(DefaultTopic::new());
         // All entries have DefaultTopic
         assert_eq!(query.count(), 5);
     }
@@ -458,7 +459,7 @@ mod tests {
         // Create same event delivered to multiple actors
         let envelope = Arc::new(Envelope::new(TestEvent::Data(42), actors.alice.clone()));
         let target_id = envelope.id();
-        let topic = Arc::new(DefaultTopic);
+        let topic = Arc::new(DefaultTopic::new());
         let records = Arc::new(vec![
             make_entry(TestEvent::Ping, &actors.bob, &actors.charlie),
             EventEntry::new(envelope.clone(), topic.clone(), actors.bob.clone()),
@@ -545,7 +546,7 @@ mod tests {
     #[test]
     fn children_of_filters_by_parent_id() {
         let actors = TestActors::new();
-        let topic = Arc::new(DefaultTopic);
+        let topic = Arc::new(DefaultTopic::new());
 
         // Create a parent event and a child linked to it
         let parent_envelope = Arc::new(Envelope::new(TestEvent::Ping, actors.alice.clone()));
@@ -585,7 +586,7 @@ mod tests {
     #[test]
     fn collect_deduplicates_by_event_id() {
         let actors = TestActors::new();
-        let topic = Arc::new(DefaultTopic);
+        let topic = Arc::new(DefaultTopic::new());
 
         // Same event delivered to multiple actors
         let envelope = Arc::new(Envelope::new(TestEvent::Ping, actors.alice.clone()));
@@ -680,7 +681,7 @@ mod tests {
 
     #[test]
     fn exists_returns_false_for_empty_records() {
-        let query: EventQuery<TestEvent, DefaultTopic> = EventQuery::new(Arc::new(vec![]));
+        let query: EventQuery<DefaultTopic<TestEvent>> = EventQuery::new(Arc::new(vec![]));
         assert!(!query.exists());
     }
 

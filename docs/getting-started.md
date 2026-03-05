@@ -42,10 +42,10 @@ impl Actor for WeatherLogger {
 #[tokio::main]
 async fn main() -> Result {
     // Create a supervisor. DefaultTopic routes all events to all subscribers.
-    let mut sup = Supervisor::<WeatherEvent>::default();
+    let mut sup = Supervisor::<DefaultTopic<WeatherEvent>>::default();
 
     // Register the actor. It subscribes to DefaultTopic (receives everything).
-    sup.add_actor("logger", |_ctx| WeatherLogger, &[DefaultTopic])?;
+    sup.add_actor("logger", |_ctx| WeatherLogger, &[DefaultTopic::new()])?;
 
     sup.start().await?;
 
@@ -110,10 +110,10 @@ impl Actor for WeatherLogger {
 
 #[tokio::main]
 async fn main() -> Result {
-    let mut sup = Supervisor::<WeatherEvent>::default();
+    let mut sup = Supervisor::<DefaultTopic<WeatherEvent>>::default();
 
-    sup.add_actor("alerter", |ctx| Alerter { ctx, threshold: 35.0 }, &[DefaultTopic])?;
-    sup.add_actor("logger", |_ctx| WeatherLogger, &[DefaultTopic])?;
+    sup.add_actor("alerter", |ctx| Alerter { ctx, threshold: 35.0 }, &[DefaultTopic::new()])?;
+    sup.add_actor("logger", |_ctx| WeatherLogger, &[DefaultTopic::new()])?;
 
     sup.start().await?;
 
@@ -131,7 +131,7 @@ This works: the alerter processes temperatures and emits alerts, the logger obse
 
 ## Step 3: Custom Topics
 
-Topics control which actors receive which events. Define a topic enum and implement `Topic<E>` to map events to topics:
+Topics control which actors receive which events. Define a topic enum and implement `Topic` to map events to topics:
 
 ```rust
 use maiko::*;
@@ -150,7 +150,9 @@ enum WeatherTopic {
     Alert,
 }
 
-impl Topic<WeatherEvent> for WeatherTopic {
+impl Topic for WeatherTopic {
+    type Event = WeatherEvent;
+
     fn from_event(event: &WeatherEvent) -> Self {
         match event {
             WeatherEvent::Temperature(_) => WeatherTopic::Reading,
@@ -193,8 +195,8 @@ impl Actor for WeatherLogger {
 
 #[tokio::main]
 async fn main() -> Result {
-    // Specify both the event type AND the topic type.
-    let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
+    // Specify the topic type - the event type is inferred via Topic::Event.
+    let mut sup = Supervisor::<WeatherTopic>::default();
 
     // Alerter subscribes only to Reading - receives temperatures, not its own alerts.
     sup.add_actor("alerter", |ctx| Alerter { ctx, threshold: 35.0 }, &[WeatherTopic::Reading])?;
@@ -237,7 +239,8 @@ use maiko::*;
 #     Alert,
 # }
 #
-# impl Topic<WeatherEvent> for WeatherTopic {
+# impl Topic for WeatherTopic {
+#     type Event = WeatherEvent;
 #     fn from_event(event: &WeatherEvent) -> Self {
 #         match event {
 #             WeatherEvent::Temperature(_) => WeatherTopic::Reading,
@@ -311,7 +314,7 @@ async fn main() -> Result {
         .with_max_level(tracing::Level::TRACE)
         .init();
 
-    let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
+    let mut sup = Supervisor::<WeatherTopic>::default();
 
     // Add tracer before starting
     sup.monitors().add(Tracer).await;
@@ -359,7 +362,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_high_temperature_triggers_alert() -> Result {
-        let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
+        let mut sup = Supervisor::<WeatherTopic>::default();
 
         let sensor = sup.add_actor("sensor", |ctx| TempSensor { ctx }, Subscribe::none())?;
         let alerter = sup.add_actor(
@@ -393,7 +396,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_normal_temperature_no_alert() -> Result {
-        let mut sup = Supervisor::<WeatherEvent, WeatherTopic>::default();
+        let mut sup = Supervisor::<WeatherTopic>::default();
 
         let sensor = sup.add_actor("sensor", |ctx| TempSensor { ctx }, Subscribe::none())?;
         sup.add_actor(

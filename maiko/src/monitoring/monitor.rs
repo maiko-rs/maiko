@@ -1,4 +1,4 @@
-use crate::{ActorId, DefaultTopic, Envelope, Event, OverflowPolicy, StepAction, Topic};
+use crate::{ActorId, Envelope, OverflowPolicy, StepAction, Topic};
 
 /// Trait for observing event flow through the system.
 ///
@@ -9,17 +9,20 @@ use crate::{ActorId, DefaultTopic, Envelope, Event, OverflowPolicy, StepAction, 
 /// # Example
 ///
 /// ```rust
-/// # use maiko::{ActorId, Envelope, Event, Topic};
+/// # use maiko::{ActorId, Envelope, Topic};
 /// use maiko::monitoring::Monitor;
 ///
 /// struct EventLogger;
 ///
-/// impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
-///     fn on_event_dispatched(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+/// impl<T: Topic + std::fmt::Debug> Monitor<T> for EventLogger
+/// where
+///     T::Event: std::fmt::Debug,
+/// {
+///     fn on_event_dispatched(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
 ///         println!("[dispatch] {} -> {}", envelope.meta().actor_name(), receiver.as_str());
 ///     }
 ///
-///     fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+///     fn on_event_handled(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
 ///         println!("[handled] {} by {}", envelope.id(), receiver.as_str());
 ///     }
 /// }
@@ -33,11 +36,11 @@ use crate::{ActorId, DefaultTopic, Envelope, Event, OverflowPolicy, StepAction, 
 /// 3. **Handled**  - Actor's `handle_event()` completes
 ///
 /// For a single event delivered to N actors, each callback fires N times.
-pub trait Monitor<E: Event, T: Topic<E> = DefaultTopic>: Send {
+pub trait Monitor<T: Topic>: Send {
     /// Called when the broker dispatches an event to a subscriber.
     ///
     /// This fires once per subscriber that will receive the event.
-    fn on_event_dispatched(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+    fn on_event_dispatched(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         let _e = envelope;
         let _t = topic;
         let _r = receiver;
@@ -46,7 +49,7 @@ pub trait Monitor<E: Event, T: Topic<E> = DefaultTopic>: Send {
     /// Called when an actor receives an event from its mailbox.
     ///
     /// This fires just before `handle_event()` is called.
-    fn on_event_delivered(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+    fn on_event_delivered(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         let _e = envelope;
         let _t = topic;
         let _r = receiver;
@@ -55,7 +58,7 @@ pub trait Monitor<E: Event, T: Topic<E> = DefaultTopic>: Send {
     /// Called after an actor finishes processing an event.
     ///
     /// This fires after `handle_event()` returns (success or error).
-    fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+    fn on_event_handled(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         let _e = envelope;
         let _t = topic;
         let _r = receiver;
@@ -91,7 +94,7 @@ pub trait Monitor<E: Event, T: Topic<E> = DefaultTopic>: Send {
     /// or channel close) takes effect. See [`OverflowPolicy`] for details.
     fn on_overflow(
         &self,
-        envelope: &Envelope<E>,
+        envelope: &Envelope<T::Event>,
         topic: &T,
         receiver: &ActorId,
         policy: OverflowPolicy,

@@ -33,8 +33,8 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result {
-//!     let mut sup = Supervisor::<MyEvent>::default();
-//!     sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic])?;
+//!     let mut sup = Supervisor::<DefaultTopic<MyEvent>>::default();
+//!     sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic::new()])?;
 //!
 //!     sup.start().await?;
 //!     sup.send(MyEvent::Hello("World".into())).await?;
@@ -64,7 +64,8 @@
 //! #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 //! enum MyTopic { Data, Control }
 //!
-//! impl Topic<MyEvent> for MyTopic {
+//! impl Topic for MyTopic {
+//!     type Event = MyEvent;
 //!     fn from_event(event: &MyEvent) -> Self {
 //!         match event {
 //!             MyEvent::Data(_) => MyTopic::Data,

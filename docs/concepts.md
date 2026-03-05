@@ -47,7 +47,9 @@ enum NetworkTopic {
     Control,
 }
 
-impl Topic<NetworkEvent> for NetworkTopic {
+impl Topic for NetworkTopic {
+    type Event = NetworkEvent;
+
     fn from_event(event: &NetworkEvent) -> Self {
         match event {
             NetworkEvent::PacketReceived(_) => NetworkTopic::Ingress,
@@ -63,7 +65,9 @@ impl Topic<NetworkEvent> for NetworkTopic {
 Each topic defines what happens when a subscriber's channel is full, via `overflow_policy()`:
 
 ```rust
-impl Topic<NetworkEvent> for NetworkTopic {
+impl Topic for NetworkTopic {
+    type Event = NetworkEvent;
+
     fn from_event(event: &NetworkEvent) -> Self { /* ... */ }
 
     fn overflow_policy(&self) -> OverflowPolicy {
@@ -83,7 +87,7 @@ The default is `Fail` - the subscriber's channel is closed and the actor termina
 Use `DefaultTopic` when you don't need routing - all events go to all subscribed actors:
 
 ```rust
-sup.add_actor("processor", factory, &[DefaultTopic])?;
+sup.add_actor("processor", factory, &[DefaultTopic::new()])?;
 ```
 
 ## Actors
@@ -204,7 +208,7 @@ The `Supervisor` manages actor lifecycles and provides registration APIs.
 ### Simple API
 
 ```rust
-let mut sup = Supervisor::<NetworkEvent, NetworkTopic>::default();
+let mut sup = Supervisor::<NetworkTopic>::default();
 
 sup.add_actor("ingress", |ctx| IngressActor::new(ctx), &[NetworkTopic::Ingress])?;
 sup.add_actor("egress", |ctx| EgressActor::new(ctx), &[NetworkTopic::Egress])?;
@@ -294,7 +298,7 @@ async fn step(&mut self) -> Result<StepAction> {
 
 ```rust
 // Returned when registering an actor
-let producer: ActorId = sup.add_actor("producer", |ctx| Producer::new(ctx), &[DefaultTopic])?;
+let producer: ActorId = sup.add_actor("producer", |ctx| Producer::new(ctx), &[DefaultTopic::new()])?;
 
 // Access sender from event metadata
 async fn handle_event(&mut self, envelope: &Envelope<Self::Event>) -> Result {

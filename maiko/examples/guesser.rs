@@ -65,7 +65,9 @@ enum GuesserTopic {
     Output,
 }
 
-impl Topic<GuesserEvent> for GuesserTopic {
+impl Topic for GuesserTopic {
+    type Event = GuesserEvent;
+
     fn from_event(event: &GuesserEvent) -> Self {
         use GuesserEvent::*;
         use GuesserTopic::*;
@@ -229,7 +231,7 @@ impl Actor for Printer {
 
 #[tokio::main]
 async fn main() -> Result {
-    let mut supervisor = Supervisor::<GuesserEvent, GuesserTopic>::default();
+    let mut supervisor = Supervisor::<GuesserTopic>::default();
 
     // Add Player actors with no subscriptions - they only produce events
     supervisor.add_actor(

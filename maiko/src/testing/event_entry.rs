@@ -1,6 +1,6 @@
 use std::{hash, sync::Arc};
 
-use crate::{ActorId, Envelope, Event, EventId, Meta, Topic};
+use crate::{ActorId, Envelope, EventId, Meta, Topic};
 
 /// A record of an event delivery from one actor to another.
 ///
@@ -13,14 +13,14 @@ use crate::{ActorId, Envelope, Event, EventId, Meta, Topic};
 /// - `topic`: The topic under which this event was routed
 /// - `actor_id`: The receiving actor
 #[derive(Debug, Clone, PartialEq, Eq, hash::Hash)]
-pub struct EventEntry<E: Event, T: Topic<E>> {
-    pub(crate) event: Arc<Envelope<E>>,
+pub struct EventEntry<T: Topic> {
+    pub(crate) event: Arc<Envelope<T::Event>>,
     pub(crate) topic: Arc<T>,
     pub(crate) actor_id: ActorId,
 }
 
-impl<E: Event, T: Topic<E>> EventEntry<E, T> {
-    pub(crate) fn new(event: Arc<Envelope<E>>, topic: Arc<T>, actor_id: ActorId) -> Self {
+impl<T: Topic> EventEntry<T> {
+    pub(crate) fn new(event: Arc<Envelope<T::Event>>, topic: Arc<T>, actor_id: ActorId) -> Self {
         Self {
             event,
             topic,
@@ -36,7 +36,7 @@ impl<E: Event, T: Topic<E>> EventEntry<E, T> {
 
     /// Returns a reference to the event payload.
     #[inline]
-    pub fn payload(&self) -> &E {
+    pub fn payload(&self) -> &T::Event {
         self.event.event()
     }
 
@@ -80,17 +80,17 @@ impl<E: Event, T: Topic<E>> EventEntry<E, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DefaultTopic;
+    use crate::{DefaultTopic, Event};
 
     #[derive(Clone, Debug)]
     struct TestEvent(i32);
     impl Event for TestEvent {}
 
-    fn make_entry() -> (EventEntry<TestEvent, DefaultTopic>, ActorId, ActorId) {
+    fn make_entry() -> (EventEntry<DefaultTopic<TestEvent>>, ActorId, ActorId) {
         let sender_id = ActorId::new("sender-actor");
         let receiver_id = ActorId::new("receiver-actor");
         let envelope = Arc::new(Envelope::new(TestEvent(42), sender_id.clone()));
-        let entry = EventEntry::new(envelope, Arc::new(DefaultTopic), receiver_id.clone());
+        let entry = EventEntry::new(envelope, Arc::new(DefaultTopic::new()), receiver_id.clone());
         (entry, sender_id, receiver_id)
     }
 
@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn topic_returns_routing_topic() {
         let (entry, _, _) = make_entry();
-        assert_eq!(*entry.topic(), DefaultTopic);
+        assert_eq!(*entry.topic(), DefaultTopic::new());
     }
 
     #[test]

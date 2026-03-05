@@ -44,7 +44,8 @@ use std::fmt;
 /// # enum MyEvent { Control, Telemetry }
 /// # #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 /// # enum MyTopic { Control, Telemetry }
-/// impl Topic<MyEvent> for MyTopic {
+/// impl Topic for MyTopic {
+///     type Event = MyEvent;
 ///     fn from_event(event: &MyEvent) -> Self {
 ///         match event {
 ///             MyEvent::Control => MyTopic::Control,

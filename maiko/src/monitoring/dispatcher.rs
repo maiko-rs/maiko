@@ -16,17 +16,17 @@ use tokio::{
 };
 
 use crate::{
-    Event, Topic,
+    Topic,
     monitoring::{Monitor, MonitorCommand, MonitorId, MonitoringEvent},
 };
 
-struct MonitorEntry<E: Event, T: Topic<E>> {
-    monitor: Box<dyn Monitor<E, T>>,
+struct MonitorEntry<T: Topic> {
+    monitor: Box<dyn Monitor<T>>,
     paused: bool,
 }
 
-impl<E: Event, T: Topic<E>> MonitorEntry<E, T> {
-    fn new(monitor: Box<dyn Monitor<E, T>>) -> Self {
+impl<T: Topic> MonitorEntry<T> {
+    fn new(monitor: Box<dyn Monitor<T>>) -> Self {
         Self {
             monitor,
             paused: false,
@@ -34,9 +34,9 @@ impl<E: Event, T: Topic<E>> MonitorEntry<E, T> {
     }
 }
 
-pub(crate) struct MonitorDispatcher<E: Event, T: Topic<E>> {
-    receiver: Receiver<MonitorCommand<E, T>>,
-    monitors: HashMap<MonitorId, MonitorEntry<E, T>>,
+pub(crate) struct MonitorDispatcher<T: Topic> {
+    receiver: Receiver<MonitorCommand<T>>,
+    monitors: HashMap<MonitorId, MonitorEntry<T>>,
     last_id: MonitorId,
     ids_to_remove: Vec<MonitorId>,
     is_active: Arc<AtomicBool>,
@@ -45,8 +45,8 @@ pub(crate) struct MonitorDispatcher<E: Event, T: Topic<E>> {
     is_alive: bool,
 }
 
-impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
-    pub fn new(receiver: Receiver<MonitorCommand<E, T>>, is_active: Arc<AtomicBool>) -> Self {
+impl<T: Topic> MonitorDispatcher<T> {
+    pub fn new(receiver: Receiver<MonitorCommand<T>>, is_active: Arc<AtomicBool>) -> Self {
         Self {
             receiver,
             monitors: HashMap::new(),
@@ -109,7 +109,7 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
         }
     }
 
-    fn handle_command(&mut self, cmd: MonitorCommand<E, T>) {
+    fn handle_command(&mut self, cmd: MonitorCommand<T>) {
         use MonitorCommand::*;
         match cmd {
             AddMonitor(monitor, resp) => {
@@ -151,7 +151,7 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
         }
     }
 
-    fn handle_event(&mut self, event: MonitoringEvent<E, T>) {
+    fn handle_event(&mut self, event: MonitoringEvent<T>) {
         use MonitoringEvent::*;
         match event {
             EventDispatched(envelope, topic, actor_id) => {
@@ -178,7 +178,7 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
         }
     }
 
-    fn notify(&mut self, f: impl Fn(&dyn Monitor<E, T>)) {
+    fn notify(&mut self, f: impl Fn(&dyn Monitor<T>)) {
         for (id, entry) in &self.monitors {
             if entry.paused {
                 continue;
@@ -197,7 +197,7 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
     }
 }
 
-impl<E: Event, T: Topic<E>> fmt::Debug for MonitorDispatcher<E, T> {
+impl<T: Topic> fmt::Debug for MonitorDispatcher<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MonitorDispatcher")
             .field("receiver", &self.receiver)

@@ -2,17 +2,17 @@
 
 use std::collections::HashSet;
 
-use crate::{ActorId, Event, EventId, Topic};
+use crate::{ActorId, EventId, Topic};
 
 use super::EventChain;
 
 /// Actor trace view for querying which actors were visited by the chain.
 #[derive(Debug)]
-pub struct ActorTrace<'a, E: Event, T: Topic<E>> {
-    pub(super) chain: &'a EventChain<E, T>,
+pub struct ActorTrace<'a, T: Topic> {
+    pub(super) chain: &'a EventChain<T>,
 }
 
-impl<'a, E: Event, T: Topic<E>> ActorTrace<'a, E, T> {
+impl<'a, T: Topic> ActorTrace<'a, T> {
     /// Returns all actors involved in this chain (sender and receivers).
     ///
     /// The list includes the root event's sender and all actors

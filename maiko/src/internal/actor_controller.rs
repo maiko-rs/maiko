@@ -13,7 +13,7 @@ use crate::{
 #[cfg(feature = "monitoring")]
 use crate::monitoring::{MonitoringEvent, MonitoringSink};
 
-pub(crate) struct ActorController<A: Actor, T: Topic<A::Event>> {
+pub(crate) struct ActorController<A: Actor, T: Topic<Event = A::Event>> {
     pub(crate) actor: A,
     pub(crate) receiver: Receiver<Arc<Envelope<A::Event>>>,
     pub(crate) ctx: Context<A::Event>,
@@ -21,12 +21,12 @@ pub(crate) struct ActorController<A: Actor, T: Topic<A::Event>> {
     pub(crate) command_rx: broadcast::Receiver<Command>,
 
     #[cfg(feature = "monitoring")]
-    pub(crate) monitoring: MonitoringSink<A::Event, T>,
+    pub(crate) monitoring: MonitoringSink<T>,
 
     pub(crate) _topic: std::marker::PhantomData<fn() -> T>,
 }
 
-impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
+impl<A: Actor, T: Topic<Event = A::Event>> ActorController<A, T> {
     pub async fn run(&mut self) -> Result {
         self.actor.on_start().await?;
         let mut step_handler = StepHandler::default();
@@ -149,7 +149,7 @@ async fn handle_step_action(step_action: StepAction, step_handler: &mut StepHand
 }
 
 #[cfg(feature = "monitoring")]
-impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
+impl<A: Actor, T: Topic<Event = A::Event>> ActorController<A, T> {
     #[inline]
     fn notify_event_delivered(&self, event: &Arc<Envelope<A::Event>>, topic: &Arc<T>) {
         if self.monitoring.is_active() {
@@ -209,7 +209,9 @@ mod tests {
         A,
         B,
     }
-    impl Topic<TestEvent> for TestTopic {
+    impl Topic for TestTopic {
+        type Event = TestEvent;
+
         fn from_event(event: &TestEvent) -> Self {
             match event {
                 TestEvent::A => TestTopic::A,
@@ -239,7 +241,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_monitoring_uses_event_topic_for_stage2_try_recv() -> crate::Result<()> {
-        let mut sup = Supervisor::<TestEvent, TestTopic>::default();
+        let mut sup = Supervisor::<TestTopic>::default();
         let receiver = sup
             .build_actor("receiver", |_| SlowFirstEventActor::default())
             .topics(&[TestTopic::A, TestTopic::B])

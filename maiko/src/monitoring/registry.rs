@@ -3,7 +3,7 @@ use std::sync::{Arc, atomic::AtomicBool};
 use tokio::sync::oneshot;
 
 use crate::{
-    Event, SupervisorConfig, Topic,
+    SupervisorConfig, Topic,
     monitoring::{
         Monitor, MonitorCommand, MonitorDispatcher, MonitorHandle, MonitorId, MonitoringSink,
     },
@@ -28,14 +28,14 @@ use crate::{
 /// registry.resume().await;
 /// ```
 #[derive(Debug)]
-pub struct MonitorRegistry<E: Event, T: Topic<E>> {
-    dispatcher: Option<MonitorDispatcher<E, T>>,
+pub struct MonitorRegistry<T: Topic> {
+    dispatcher: Option<MonitorDispatcher<T>>,
     dispatcher_handle: Option<tokio::task::JoinHandle<()>>,
-    pub(crate) sender: tokio::sync::mpsc::Sender<MonitorCommand<E, T>>,
+    pub(crate) sender: tokio::sync::mpsc::Sender<MonitorCommand<T>>,
     pub(crate) is_active: Arc<AtomicBool>,
 }
 
-impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
+impl<T: Topic> MonitorRegistry<T> {
     pub(crate) fn new(config: &SupervisorConfig) -> Self {
         let (tx, rx) = tokio::sync::mpsc::channel(config.monitoring_channel_capacity());
         let is_active = Arc::new(AtomicBool::new(false));
@@ -74,7 +74,7 @@ impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
         }
     }
 
-    pub(crate) fn sink(&self) -> MonitoringSink<E, T> {
+    pub(crate) fn sink(&self) -> MonitoringSink<T> {
         MonitoringSink::new(self.sender.clone(), self.is_active.clone())
     }
 
@@ -85,7 +85,7 @@ impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
     /// # Panics
     ///
     /// Panics if the dispatcher channel is closed (supervisor already stopped).
-    pub async fn add<M: Monitor<E, T> + 'static>(&self, monitor: M) -> MonitorHandle<E, T> {
+    pub async fn add<M: Monitor<T> + 'static>(&self, monitor: M) -> MonitorHandle<T> {
         let (tx, rx) = oneshot::channel();
         let _ = self
             .sender
@@ -118,7 +118,7 @@ impl<E: Event, T: Topic<E>> MonitorRegistry<E, T> {
     }
 }
 
-impl<E: Event, T: Topic<E>> Drop for MonitorRegistry<E, T> {
+impl<T: Topic> Drop for MonitorRegistry<T> {
     fn drop(&mut self) {
         if let Some(handle) = self.dispatcher_handle.take() {
             handle.abort();

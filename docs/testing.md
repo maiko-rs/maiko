@@ -22,7 +22,7 @@ The test harness enables:
 ```rust
 #[tokio::test]
 async fn test_event_flow() -> Result {
-    let mut sup = Supervisor::<MyEvent>::default();
+    let mut sup = Supervisor::<DefaultTopic<MyEvent>>::default();
     let producer = sup.add_actor("producer", |ctx| Producer::new(ctx), Subscribe::all())?;
     let consumer = sup.add_actor("consumer", |ctx| Consumer::new(ctx), Subscribe::all())?;
 
@@ -355,7 +355,7 @@ let count = test.event_count();
 ```rust
 #[tokio::test]
 async fn test_order_processing_pipeline() -> Result {
-    let mut sup = Supervisor::<OrderEvent, OrderTopic>::default();
+    let mut sup = Supervisor::<OrderTopic>::default();
 
     let gateway = sup.add_actor("gateway", |ctx| Gateway::new(ctx), Subscribe::to(&[OrderTopic::Incoming]))?;
     let validator = sup.add_actor("validator", |ctx| Validator::new(ctx), Subscribe::to(&[OrderTopic::Incoming]))?;

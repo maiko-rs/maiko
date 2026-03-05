@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::sync::{mpsc::Sender, oneshot};
 
 use crate::{
-    Event, Topic,
+    Topic,
     monitoring::{MonitorCommand, MonitorId},
 };
 
@@ -26,13 +26,13 @@ use crate::{
 /// handle.remove().await;
 /// ```
 #[derive(Debug, Clone)]
-pub struct MonitorHandle<E: Event, T: Topic<E>> {
+pub struct MonitorHandle<T: Topic> {
     id: MonitorId,
-    sender: Sender<MonitorCommand<E, T>>,
+    sender: Sender<MonitorCommand<T>>,
 }
 
-impl<E: Event, T: Topic<E>> MonitorHandle<E, T> {
-    pub(crate) fn new(id: MonitorId, sender: Sender<MonitorCommand<E, T>>) -> Self {
+impl<T: Topic> MonitorHandle<T> {
+    pub(crate) fn new(id: MonitorId, sender: Sender<MonitorCommand<T>>) -> Self {
         Self { id, sender }
     }
 

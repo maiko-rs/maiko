@@ -20,8 +20,11 @@
 //!
 //! struct EventLogger;
 //!
-//! impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
-//!     fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+//! impl<T: Topic + std::fmt::Debug> Monitor<T> for EventLogger
+//! where
+//!     T::Event: std::fmt::Debug,
+//! {
+//!     fn on_event_handled(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
 //!         println!("[handled] {} by {}", envelope.id(), receiver.as_str());
 //!     }
 //! }

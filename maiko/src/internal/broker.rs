@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use super::Subscriber;
 use crate::{
-    ActorId, Envelope, Error, Event, OverflowPolicy, Result, Topic,
+    ActorId, Envelope, Error, OverflowPolicy, Result, Topic,
     internal::{Command, CommandSender, Subscription},
 };
 use futures_util::{FutureExt, StreamExt, future::join_all, stream::SelectAll};
@@ -21,11 +21,11 @@ use crate::monitoring::{MonitoringEvent, MonitoringSink};
 
 type Payload<E> = Arc<Envelope<E>>;
 
-pub struct Broker<E: Event, T: Topic<E>> {
-    senders: SelectAll<ReceiverStream<Payload<E>>>,
+pub struct Broker<T: Topic> {
+    senders: SelectAll<ReceiverStream<Payload<T::Event>>>,
 
     /// Canonical subscriber registry keyed by [`ActorId`].
-    subscribers: HashMap<ActorId, Subscriber<E, T>>,
+    subscribers: HashMap<ActorId, Subscriber<T>>,
     /// Index of explicit topic subscriptions ([`Subscription::Topics`]).
     subscribers_by_topic: HashMap<T, Vec<ActorId>>,
     /// [`ActorId`]s subscribed to all topics ([`Subscription::All`]).
@@ -35,14 +35,14 @@ pub struct Broker<E: Event, T: Topic<E>> {
     command_rx: broadcast::Receiver<Command>,
 
     #[cfg(feature = "monitoring")]
-    monitoring: MonitoringSink<E, T>,
+    monitoring: MonitoringSink<T>,
 }
 
-impl<E: Event, T: Topic<E>> Broker<E, T> {
+impl<T: Topic> Broker<T> {
     pub fn new(
         command_tx: CommandSender,
-        #[cfg(feature = "monitoring")] monitoring: MonitoringSink<E, T>,
-    ) -> Broker<E, T> {
+        #[cfg(feature = "monitoring")] monitoring: MonitoringSink<T>,
+    ) -> Broker<T> {
         Broker {
             senders: SelectAll::new(),
             subscribers: HashMap::new(),
@@ -55,7 +55,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         }
     }
 
-    pub(crate) fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) -> Result {
+    pub(crate) fn add_subscriber(&mut self, subscriber: Subscriber<T>) -> Result {
         if self.subscribers.contains_key(&subscriber.actor_id) {
             return Err(Error::DuplicateActorName(subscriber.actor_id.clone()));
         }
@@ -83,11 +83,11 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         Ok(())
     }
 
-    pub(crate) fn add_sender(&mut self, receiver: Receiver<Payload<E>>) {
+    pub(crate) fn add_sender(&mut self, receiver: Receiver<Payload<T::Event>>) {
         self.senders.push(ReceiverStream::new(receiver));
     }
 
-    async fn send_event(&self, e: &Arc<Envelope<E>>) -> Result {
+    async fn send_event(&self, e: &Arc<Envelope<T::Event>>) -> Result {
         let topic = T::from_event(e.event());
         let mut blocked = None;
 
@@ -251,12 +251,12 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
 }
 
 #[cfg(feature = "monitoring")]
-impl<E: Event, T: Topic<E>> Broker<E, T> {
+impl<T: Topic> Broker<T> {
     #[inline]
     fn record_event_dispatched(
         &self,
         is_recording: bool,
-        e: &Arc<Envelope<E>>,
+        e: &Arc<Envelope<T::Event>>,
         topic: &Option<Arc<T>>,
         actor_id: &ActorId,
     ) {
@@ -275,7 +275,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
     fn record_overflow(
         &self,
         is_recording: bool,
-        e: &Arc<Envelope<E>>,
+        e: &Arc<Envelope<T::Event>>,
         topic: &Option<Arc<T>>,
         actor_id: &ActorId,
         policy: OverflowPolicy,
@@ -320,7 +320,9 @@ mod tests {
         A,
         B,
     }
-    impl Topic<TestEvent> for TestTopic {
+    impl Topic for TestTopic {
+        type Event = TestEvent;
+
         fn from_event(event: &TestEvent) -> Self {
             if event.id % 2 == 0 {
                 TestTopic::A
@@ -339,13 +341,13 @@ mod tests {
 
         #[cfg(feature = "monitoring")]
         let monitoring = {
-            let registry = crate::monitoring::MonitorRegistry::<TestEvent, TestTopic>::new(
+            let registry = crate::monitoring::MonitorRegistry::<TestTopic>::new(
                 &crate::SupervisorConfig::default(),
             );
             registry.sink()
         };
 
-        let mut broker = Broker::<TestEvent, TestTopic>::new(
+        let mut broker = Broker::<TestTopic>::new(
             CommandSender::from(command_tx),
             #[cfg(feature = "monitoring")]
             monitoring,

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    ActorId, Event, Topic,
+    ActorId, Topic,
     monitors::ActorMonitor,
     testing::{EventEntry, EventQuery, EventRecords},
 };
@@ -12,14 +12,14 @@ use crate::{
 /// - Events received by this actor (inbound)
 /// - Events sent by this actor (outbound)
 /// - Which actors this actor communicated with
-pub struct ActorSpy<E: Event, T: Topic<E>> {
+pub struct ActorSpy<T: Topic> {
     actor: ActorId,
-    inbound: EventQuery<E, T>,
-    outbound: EventQuery<E, T>,
+    inbound: EventQuery<T>,
+    outbound: EventQuery<T>,
     actor_monitor: ActorMonitor,
 }
 
-impl<E: Event, T: Topic<E>> fmt::Debug for ActorSpy<E, T> {
+impl<T: Topic> fmt::Debug for ActorSpy<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let lifecycle = if self.is_running() {
             "running"
@@ -37,9 +37,9 @@ impl<E: Event, T: Topic<E>> fmt::Debug for ActorSpy<E, T> {
     }
 }
 
-impl<E: Event, T: Topic<E>> ActorSpy<E, T> {
+impl<T: Topic> ActorSpy<T> {
     pub(crate) fn new(
-        records: EventRecords<E, T>,
+        records: EventRecords<T>,
         actor: ActorId,
         actor_monitor: ActorMonitor,
     ) -> Self {
@@ -77,7 +77,7 @@ impl<E: Event, T: Topic<E>> ActorSpy<E, T> {
     /// Returns a query for events received by this actor.
     ///
     /// Use this to further filter or inspect inbound events.
-    pub fn inbound(&self) -> EventQuery<E, T> {
+    pub fn inbound(&self) -> EventQuery<T> {
         self.inbound.clone()
     }
 
@@ -87,7 +87,7 @@ impl<E: Event, T: Topic<E>> ActorSpy<E, T> {
     }
 
     /// Returns the last event received by this actor.
-    pub fn last_received(&self) -> Option<EventEntry<E, T>> {
+    pub fn last_received(&self) -> Option<EventEntry<T>> {
         self.inbound.last()
     }
 
@@ -106,7 +106,7 @@ impl<E: Event, T: Topic<E>> ActorSpy<E, T> {
     /// Returns a query for events sent by this actor.
     ///
     /// Use this to further filter or inspect outbound events.
-    pub fn outbound(&self) -> EventQuery<E, T> {
+    pub fn outbound(&self) -> EventQuery<T> {
         self.outbound.clone()
     }
 
@@ -119,7 +119,7 @@ impl<E: Event, T: Topic<E>> ActorSpy<E, T> {
     }
 
     /// Returns the last event sent by this actor.
-    pub fn last_sent(&self) -> Option<EventEntry<E, T>> {
+    pub fn last_sent(&self) -> Option<EventEntry<T>> {
         self.outbound.last()
     }
 
@@ -135,12 +135,11 @@ impl<E: Event, T: Topic<E>> ActorSpy<E, T> {
 }
 
 /// Helper to collect distinct values from a query using a mapper function.
-fn distinct_by<E, T, R, F>(query: &EventQuery<E, T>, mapper: F) -> Vec<R>
+fn distinct_by<T, R, F>(query: &EventQuery<T>, mapper: F) -> Vec<R>
 where
-    E: Event,
-    T: Topic<E>,
+    T: Topic,
     R: std::hash::Hash + std::cmp::Eq,
-    F: Fn(&EventEntry<E, T>) -> R,
+    F: Fn(&EventEntry<T>) -> R,
 {
     use std::collections::HashSet;
     query
@@ -184,12 +183,12 @@ mod tests {
         event: TestEvent,
         sender: &ActorId,
         receiver: &ActorId,
-    ) -> EventEntry<TestEvent, DefaultTopic> {
+    ) -> EventEntry<DefaultTopic<TestEvent>> {
         let envelope = Arc::new(Envelope::new(event, sender.clone()));
-        EventEntry::new(envelope, Arc::new(DefaultTopic), receiver.clone())
+        EventEntry::new(envelope, Arc::new(DefaultTopic::new()), receiver.clone())
     }
 
-    fn sample_records_with_actors(actors: &TestActors) -> EventRecords<TestEvent, DefaultTopic> {
+    fn sample_records_with_actors(actors: &TestActors) -> EventRecords<DefaultTopic<TestEvent>> {
         // Scenario: alice sends to bob and charlie, bob sends to alice
         Arc::new(vec![
             make_entry(TestEvent(1), &actors.alice, &actors.bob),
@@ -304,7 +303,7 @@ mod tests {
         let charlie = ActorId::new("charlie");
         // Same event delivered to multiple actors
         let envelope = Arc::new(Envelope::new(TestEvent(1), alice.clone()));
-        let topic = Arc::new(DefaultTopic);
+        let topic = Arc::new(DefaultTopic::new());
         let records = Arc::new(vec![
             EventEntry::new(envelope.clone(), topic.clone(), bob),
             EventEntry::new(envelope, topic, charlie),
@@ -385,11 +384,11 @@ mod tests {
     fn is_running_returns_true_for_active_actor() {
         let monitor = ActorMonitor::new();
         let alice = ActorId::new("alice");
-        let m: &dyn Monitor<TestEvent, DefaultTopic> = &monitor;
+        let m: &dyn Monitor<DefaultTopic<TestEvent>> = &monitor;
         m.on_actor_registered(&alice);
 
         let spy = ActorSpy::new(
-            Arc::new(Vec::<EventEntry<TestEvent, DefaultTopic>>::new()),
+            Arc::new(Vec::<EventEntry<DefaultTopic<TestEvent>>>::new()),
             alice,
             monitor,
         );
@@ -401,12 +400,12 @@ mod tests {
     fn is_stopped_returns_true_after_actor_stops() {
         let monitor = ActorMonitor::new();
         let alice = ActorId::new("alice");
-        let m: &dyn Monitor<TestEvent, DefaultTopic> = &monitor;
+        let m: &dyn Monitor<DefaultTopic<TestEvent>> = &monitor;
         m.on_actor_registered(&alice);
         m.on_actor_stop(&alice);
 
         let spy = ActorSpy::new(
-            Arc::new(Vec::<EventEntry<TestEvent, DefaultTopic>>::new()),
+            Arc::new(Vec::<EventEntry<DefaultTopic<TestEvent>>>::new()),
             alice,
             monitor,
         );
@@ -420,7 +419,7 @@ mod tests {
         let unknown = ActorId::new("unknown");
 
         let spy = ActorSpy::new(
-            Arc::new(Vec::<EventEntry<TestEvent, DefaultTopic>>::new()),
+            Arc::new(Vec::<EventEntry<DefaultTopic<TestEvent>>>::new()),
             unknown,
             monitor,
         );

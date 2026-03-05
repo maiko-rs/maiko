@@ -73,4 +73,4 @@ pub use expectation::Expectation;
 pub use harness::Harness;
 pub use topic_spy::TopicSpy;
 
-pub(crate) type EventRecords<E, T> = std::sync::Arc<Vec<EventEntry<E, T>>>;
+pub(crate) type EventRecords<T> = std::sync::Arc<Vec<EventEntry<T>>>;

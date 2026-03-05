@@ -1,6 +1,6 @@
-use std::{collections::HashSet, marker::PhantomData};
+use std::collections::HashSet;
 
-use crate::{Event, Topic, internal::Subscription};
+use crate::{Topic, internal::Subscription};
 
 /// Specifies which topics an actor subscribes to.
 ///
@@ -18,24 +18,21 @@ use crate::{Event, Topic, internal::Subscription};
 /// sup.add_actor("a", factory, Subscribe::to([Topic::Data]))?;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Subscribe<E: Event, T: Topic<E>>(
-    pub(crate) Subscription<T>,
-    PhantomData<fn() -> E>, // invariant over E
-);
+pub struct Subscribe<T: Topic>(pub(crate) Subscription<T>);
 
-impl<E: Event, T: Topic<E>> Subscribe<E, T> {
+impl<T: Topic> Subscribe<T> {
     /// Subscribe to all topics.
     ///
     /// Useful for monitoring actors that need to observe all events.
     pub fn all() -> Self {
-        Subscribe(Subscription::All, PhantomData)
+        Subscribe(Subscription::All)
     }
 
     /// Subscribe to no topics.
     ///
     /// Useful for actors that only produce events and don't need to receive any.
     pub fn none() -> Self {
-        Subscribe(Subscription::None, PhantomData)
+        Subscribe(Subscription::None)
     }
 
     /// Subscribe to specific topics.
@@ -48,29 +45,29 @@ impl<E: Event, T: Topic<E>> Subscribe<E, T> {
     /// ```
     pub fn to(topics: impl IntoIterator<Item = T>) -> Self {
         let set = HashSet::from_iter(topics);
-        Subscribe(Subscription::Topics(set), PhantomData)
+        Subscribe(Subscription::Topics(set))
     }
 }
 
-impl<E: Event, T: Topic<E>> From<&[T]> for Subscribe<E, T> {
+impl<T: Topic> From<&[T]> for Subscribe<T> {
     fn from(topics: &[T]) -> Self {
         Subscribe::to(topics.iter().cloned())
     }
 }
 
-impl<E: Event, T: Topic<E>, const N: usize> From<[T; N]> for Subscribe<E, T> {
+impl<T: Topic, const N: usize> From<[T; N]> for Subscribe<T> {
     fn from(topics: [T; N]) -> Self {
         Subscribe::to(topics)
     }
 }
 
-impl<E: Event, T: Topic<E>, const N: usize> From<&[T; N]> for Subscribe<E, T> {
+impl<T: Topic, const N: usize> From<&[T; N]> for Subscribe<T> {
     fn from(topics: &[T; N]) -> Self {
         Subscribe::to(topics.iter().cloned())
     }
 }
 
-impl<E: Event, T: Topic<E>> From<T> for Subscribe<E, T> {
+impl<T: Topic> From<T> for Subscribe<T> {
     fn from(topic: T) -> Self {
         Subscribe::to([topic])
     }

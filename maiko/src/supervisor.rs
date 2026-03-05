@@ -10,8 +10,8 @@ use tokio::{
 };
 
 use crate::{
-    Actor, ActorBuilder, ActorConfig, ActorId, Context, DefaultTopic, Envelope, Error, Event,
-    IntoEnvelope, Label, Result, Subscribe, SupervisorConfig, Topic,
+    Actor, ActorBuilder, ActorConfig, ActorId, Context, Envelope, Error, IntoEnvelope, Label,
+    Result, Subscribe, SupervisorConfig, Topic,
     internal::{ActorController, Broker, Command, CommandSender, Subscriber, Subscription},
 };
 
@@ -45,10 +45,10 @@ use crate::monitoring::MonitorRegistry;
 /// preventing use-after-shutdown at compile time.
 ///
 /// See also: [`Actor`], [`Context`], [`Topic`].
-pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
+pub struct Supervisor<T: Topic> {
     config: Arc<SupervisorConfig>,
-    broker: Arc<Mutex<Broker<E, T>>>,
-    pub(crate) sender: Sender<Arc<Envelope<E>>>,
+    broker: Arc<Mutex<Broker<T>>>,
+    pub(crate) sender: Sender<Arc<Envelope<T::Event>>>,
     tasks: JoinSet<Result>,
     start_notifier: Arc<Notify>,
     supervisor_id: ActorId,
@@ -58,15 +58,15 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
     cmd_rx: broadcast::Receiver<Command>,
 
     #[cfg(feature = "monitoring")]
-    monitoring: MonitorRegistry<E, T>,
+    monitoring: MonitorRegistry<T>,
 }
 
-impl<E: Event, T: Topic<E>> Supervisor<E, T> {
+impl<T: Topic> Supervisor<T> {
     /// Create a new supervisor with the given runtime configuration.
     #[must_use]
     pub fn new(config: SupervisorConfig) -> Self {
         let config = Arc::new(config);
-        let (tx, rx) = channel::<Arc<Envelope<E>>>(config.broker_channel_capacity());
+        let (tx, rx) = channel::<Arc<Envelope<T::Event>>>(config.broker_channel_capacity());
 
         #[cfg(feature = "monitoring")]
         let monitoring = {
@@ -130,11 +130,12 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// ```
     pub fn add_actor<A, F, S>(&mut self, name: &str, factory: F, topics: S) -> Result<ActorId>
     where
-        A: Actor<Event = E>,
-        F: FnOnce(Context<E>) -> A,
-        S: Into<Subscribe<E, T>>,
+        A: Actor<Event = T::Event>,
+        F: FnOnce(Context<T::Event>) -> A,
+        S: Into<Subscribe<T>>,
     {
-        let (tx, rx) = mpsc::channel::<Arc<Envelope<E>>>(self.config.broker_channel_capacity());
+        let (tx, rx) =
+            mpsc::channel::<Arc<Envelope<T::Event>>>(self.config.broker_channel_capacity());
         let ctx = self.create_context(name, tx);
         let actor = factory(ctx.clone());
         let topics = topics.into().0;
@@ -157,12 +158,13 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///     .channel_capacity(512)
     ///     .build()?;
     /// ```
-    pub fn build_actor<'a, A, F>(&'a mut self, name: &str, factory: F) -> ActorBuilder<'a, E, T, A>
+    pub fn build_actor<'a, A, F>(&'a mut self, name: &str, factory: F) -> ActorBuilder<'a, T, A>
     where
-        A: Actor<Event = E>,
-        F: FnOnce(Context<E>) -> A,
+        A: Actor<Event = T::Event>,
+        F: FnOnce(Context<T::Event>) -> A,
     {
-        let (tx, rx) = mpsc::channel::<Arc<Envelope<E>>>(self.config.broker_channel_capacity());
+        let (tx, rx) =
+            mpsc::channel::<Arc<Envelope<T::Event>>>(self.config.broker_channel_capacity());
         let ctx = self.create_context(name, tx);
         let actor = factory(ctx.clone());
         ActorBuilder::new(self, actor, ctx, rx)
@@ -176,14 +178,14 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// 3. Spawns the actor task (which waits for start notification)
     pub(crate) fn register_actor<A>(
         &mut self,
-        ctx: Context<E>,
+        ctx: Context<T::Event>,
         actor: A,
         topics: Subscription<T>,
         config: ActorConfig,
-        receiver: Receiver<Arc<Envelope<E>>>,
+        receiver: Receiver<Arc<Envelope<T::Event>>>,
     ) -> Result<ActorId>
     where
-        A: Actor<Event = E>,
+        A: Actor<Event = T::Event>,
     {
         let actor_id = ctx.actor_id().clone();
 
@@ -192,9 +194,9 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             .try_lock()
             .map_err(|_| Error::BrokerAlreadyStarted)?;
 
-        let (tx, rx) = mpsc::channel::<Arc<Envelope<E>>>(config.channel_capacity());
+        let (tx, rx) = mpsc::channel::<Arc<Envelope<T::Event>>>(config.channel_capacity());
 
-        let subscriber = Subscriber::<E, T>::new(actor_id.clone(), topics.clone(), tx);
+        let subscriber = Subscriber::<T>::new(actor_id.clone(), topics.clone(), tx);
         broker.add_subscriber(subscriber)?;
         broker.add_sender(receiver);
         self.registrations.push((actor_id.clone(), topics));
@@ -227,9 +229,9 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     pub(crate) fn create_context(
         &self,
         name: &str,
-        sender: Sender<Arc<Envelope<E>>>,
-    ) -> Context<E> {
-        Context::<E>::new(ActorId::new(name), sender, self.cmd_tx.clone())
+        sender: Sender<Arc<Envelope<T::Event>>>,
+    ) -> Context<T::Event> {
+        Context::<T::Event>::new(ActorId::new(name), sender, self.cmd_tx.clone())
     }
 
     /// Emit an event into the broker from the supervisor.
@@ -237,7 +239,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// # Errors
     ///
     /// Returns [`Error::MailboxClosed`] if the broker channel is closed.
-    pub async fn send<IE: Into<IntoEnvelope<E>>>(&self, into_envelope: IE) -> Result {
+    pub async fn send<IE: Into<IntoEnvelope<T::Event>>>(&self, into_envelope: IE) -> Result {
         let envelope = into_envelope
             .into()
             .with_actor_id(self.supervisor_id.clone())
@@ -382,12 +384,12 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// Returns the monitor registry for adding, removing, and controlling monitors.
     #[cfg(feature = "monitoring")]
     #[cfg_attr(docsrs, doc(cfg(feature = "monitoring")))]
-    pub fn monitors(&mut self) -> &mut MonitorRegistry<E, T> {
+    pub fn monitors(&mut self) -> &mut MonitorRegistry<T> {
         &mut self.monitoring
     }
 }
 
-impl<E: Event, T: Topic<E>> std::fmt::Debug for Supervisor<E, T> {
+impl<T: Topic> std::fmt::Debug for Supervisor<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let actors: Vec<&str> = self
             .registrations
@@ -401,13 +403,13 @@ impl<E: Event, T: Topic<E>> std::fmt::Debug for Supervisor<E, T> {
     }
 }
 
-impl<E: Event, T: Topic<E>> Default for Supervisor<E, T> {
+impl<T: Topic> Default for Supervisor<T> {
     fn default() -> Self {
         Self::new(SupervisorConfig::default())
     }
 }
 
-impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
+impl<T: Topic + Label> Supervisor<T> {
     /// Generate a Mermaid flowchart showing actor subscriptions.
     ///
     /// Topics are shown as circles, actors as boxes. Arrows indicate
@@ -473,7 +475,7 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
+impl<T: Topic + Label> Supervisor<T> {
     /// Export actor subscription topology as JSON.
     ///
     /// This method provides a machine-readable representation of which actors
@@ -542,6 +544,7 @@ impl<E: Event, T: Topic<E> + Label> Supervisor<E, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Event;
 
     #[derive(Debug, Clone)]
     #[allow(dead_code)]
@@ -558,7 +561,9 @@ mod tests {
         Alerts,
     }
 
-    impl Topic<TestEvent> for TestTopic {
+    impl Topic for TestTopic {
+        type Event = TestEvent;
+
         fn from_event(event: &TestEvent) -> Self {
             match event {
                 TestEvent::Sensor(_) => TestTopic::SensorData,
@@ -587,7 +592,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_to_mermaid_basic() {
-        let mut sup = Supervisor::<TestEvent, TestTopic>::default();
+        let mut sup = Supervisor::<TestTopic>::default();
         sup.add_actor("sensor", |_| DummyActor, Subscribe::none())
             .unwrap();
         sup.add_actor("processor", |_| DummyActor, &[TestTopic::SensorData])
@@ -604,7 +609,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_to_mermaid_subscribe_all() {
-        let mut sup = Supervisor::<TestEvent, TestTopic>::default();
+        let mut sup = Supervisor::<TestTopic>::default();
         sup.add_actor("processor", |_| DummyActor, &[TestTopic::SensorData])
             .unwrap();
         sup.add_actor("alerter", |_| DummyActor, &[TestTopic::Alerts])
@@ -625,7 +630,7 @@ mod tests {
     async fn test_to_json_basic() {
         use serde_json::Value;
 
-        let mut sup = Supervisor::<TestEvent, TestTopic>::default();
+        let mut sup = Supervisor::<TestTopic>::default();
 
         sup.add_actor("sensor", |_| DummyActor, Subscribe::none())
             .unwrap();
@@ -655,7 +660,7 @@ mod tests {
     async fn test_to_json_subscribe_all() {
         use serde_json::Value;
 
-        let mut sup = Supervisor::<TestEvent, TestTopic>::default();
+        let mut sup = Supervisor::<TestTopic>::default();
 
         sup.add_actor("processor", |_| DummyActor, &[TestTopic::SensorData])
             .unwrap();
@@ -683,7 +688,7 @@ mod tests {
     #[cfg(feature = "serde")]
     #[tokio::test]
     async fn test_to_json_is_valid_json() {
-        let mut sup = Supervisor::<TestEvent, TestTopic>::default();
+        let mut sup = Supervisor::<TestTopic>::default();
         sup.add_actor("a", |_| DummyActor, Subscribe::none())
             .unwrap();
 

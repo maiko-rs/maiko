@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::Receiver;
 
 use crate::{
-    Actor, ActorConfig, ActorId, Context, Envelope, Event, Result, Subscribe, Supervisor, Topic,
+    Actor, ActorConfig, ActorId, Context, Envelope, Result, Subscribe, Supervisor, Topic,
     internal::Subscription,
 };
 
@@ -34,21 +34,21 @@ use crate::{
 ///
 /// [`Supervisor::build_actor`]: crate::Supervisor::build_actor
 #[must_use = "actor is not registered until .build() is called"]
-pub struct ActorBuilder<'a, E: Event, T: Topic<E>, A: Actor<Event = E>> {
-    supervisor: &'a mut Supervisor<E, T>,
+pub struct ActorBuilder<'a, T: Topic, A: Actor<Event = T::Event>> {
+    supervisor: &'a mut Supervisor<T>,
     actor: A,
     ctx: Context<A::Event>,
     config: ActorConfig,
     topics: Subscription<T>,
-    receiver: Receiver<Arc<Envelope<E>>>,
+    receiver: Receiver<Arc<Envelope<T::Event>>>,
 }
 
-impl<'a, E: Event, T: Topic<E>, A: Actor<Event = E>> ActorBuilder<'a, E, T, A> {
+impl<'a, T: Topic, A: Actor<Event = T::Event>> ActorBuilder<'a, T, A> {
     pub(crate) fn new(
-        supervisor: &'a mut Supervisor<E, T>,
+        supervisor: &'a mut Supervisor<T>,
         actor: A,
         ctx: Context<A::Event>,
-        receiver: Receiver<Arc<Envelope<E>>>,
+        receiver: Receiver<Arc<Envelope<T::Event>>>,
     ) -> Self {
         let config = ActorConfig::new(supervisor.config());
         Self {
@@ -67,7 +67,7 @@ impl<'a, E: Event, T: Topic<E>, A: Actor<Event = E>> ActorBuilder<'a, E, T, A> {
     /// [`Subscribe::all()`], or [`Subscribe::none()`].
     pub fn topics<S>(mut self, topics: S) -> Self
     where
-        S: Into<Subscribe<E, T>>,
+        S: Into<Subscribe<T>>,
     {
         self.topics = topics.into().0;
         self

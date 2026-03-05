@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
-use crate::{ActorId, Envelope, Event, OverflowPolicy, Topic, monitoring::Monitor};
+use crate::{ActorId, Envelope, OverflowPolicy, Topic, monitoring::Monitor};
 
 /// Monitor that tracks actor lifecycle and overflow counts.
 ///
@@ -75,11 +75,7 @@ impl ActorMonitor {
     }
 }
 
-impl<E, T> Monitor<E, T> for ActorMonitor
-where
-    E: Event,
-    T: Topic<E> + Send,
-{
+impl<T: Topic> Monitor<T> for ActorMonitor {
     fn on_actor_registered(&self, actor_id: &ActorId) {
         let mut lock = self.inner.lock().unwrap();
         lock.active.insert(actor_id.clone());
@@ -94,7 +90,7 @@ where
 
     fn on_overflow(
         &self,
-        _envelope: &Envelope<E>,
+        _envelope: &Envelope<T::Event>,
         _topic: &T,
         receiver: &ActorId,
         _policy: OverflowPolicy,
@@ -126,6 +122,7 @@ mod tests {
     use crate::DefaultTopic;
 
     use super::*;
+    use crate::Event;
 
     #[derive(Clone, Debug)]
     struct TestEvent;
@@ -146,7 +143,7 @@ mod tests {
     fn registered_actor_is_alive() {
         let monitor = ActorMonitor::new();
         let a = make_id("actor-1");
-        let m: &dyn Monitor<TestEvent, DefaultTopic> = &monitor;
+        let m: &dyn Monitor<DefaultTopic<TestEvent>> = &monitor;
         m.on_actor_registered(&a);
 
         assert!(monitor.is_alive(&a));
@@ -157,7 +154,7 @@ mod tests {
     fn stopped_actor_is_not_alive() {
         let monitor = ActorMonitor::new();
         let a = make_id("actor-2");
-        let m: &dyn Monitor<TestEvent, DefaultTopic> = &monitor;
+        let m: &dyn Monitor<DefaultTopic<TestEvent>> = &monitor;
         m.on_actor_registered(&a);
         m.on_actor_stop(&a);
 
@@ -170,7 +167,7 @@ mod tests {
         let monitor = ActorMonitor::new();
         let a = make_id("actor-3");
         let env = Envelope::new(TestEvent, a.clone());
-        let topic = DefaultTopic;
+        let topic = DefaultTopic::new();
 
         assert_eq!(monitor.overflow_count(&a), 0);
         monitor.on_overflow(&env, &topic, &a, OverflowPolicy::Fail);
@@ -184,9 +181,9 @@ mod tests {
         let monitor = ActorMonitor::new();
         let a = make_id("actor-4");
         let env = Envelope::new(TestEvent, a.clone());
-        let topic = DefaultTopic;
+        let topic = DefaultTopic::new();
 
-        let m: &dyn Monitor<TestEvent, DefaultTopic> = &monitor;
+        let m: &dyn Monitor<DefaultTopic<TestEvent>> = &monitor;
         m.on_actor_registered(&a);
         monitor.on_overflow(&env, &topic, &a, OverflowPolicy::Fail);
 
@@ -212,7 +209,7 @@ mod tests {
         let query = monitor.clone();
         let a = make_id("actor-5");
 
-        let m: &dyn Monitor<TestEvent, DefaultTopic> = &monitor;
+        let m: &dyn Monitor<DefaultTopic<TestEvent>> = &monitor;
         m.on_actor_registered(&a);
 
         assert!(query.is_alive(&a));

@@ -94,8 +94,8 @@ impl Actor for Greeter {
 
 #[tokio::main]
 async fn main() -> Result {
-    let mut sup = Supervisor::<MyEvent>::default();
-    sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic])?;
+    let mut sup = Supervisor::<DefaultTopic<MyEvent>>::default();
+    sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic::new()])?;
 
     sup.start().await?;
     sup.send(MyEvent::Hello("World".into())).await?;
@@ -141,9 +141,9 @@ Maiko includes a test harness (built on the monitoring API) for observing and as
 ```rust
 #[tokio::test]
 async fn test_event_delivery() -> Result {
-    let mut sup = Supervisor::<MyEvent>::default();
-    let producer = sup.add_actor("producer", |ctx| Producer::new(ctx), &[DefaultTopic])?;
-    let consumer = sup.add_actor("consumer", |ctx| Consumer::new(ctx), &[DefaultTopic])?;
+    let mut sup = Supervisor::<DefaultTopic<MyEvent>>::default();
+    let producer = sup.add_actor("producer", |ctx| Producer::new(ctx), &[DefaultTopic::new()])?;
+    let consumer = sup.add_actor("consumer", |ctx| Consumer::new(ctx), &[DefaultTopic::new()])?;
 
     let mut test = Harness::new(&mut sup).await;
     sup.start().await?;
@@ -172,8 +172,8 @@ use maiko::monitoring::Monitor;
 
 struct EventLogger;
 
-impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
-    fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+impl<T: Topic> Monitor<T> for EventLogger {
+    fn on_event_handled(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         println!("[handled] {} by {}", envelope.id(), receiver.as_str());
     }
 }

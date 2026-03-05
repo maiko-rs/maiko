@@ -27,11 +27,11 @@ impl Actor for Greeter {
 // For simple tracing, consider using `maiko::monitors::Tracer` instead.
 struct Printer;
 
-impl Monitor<MyEvent> for Printer {
+impl Monitor<DefaultTopic<MyEvent>> for Printer {
     fn on_event_handled(
         &self,
         envelope: &Envelope<MyEvent>,
-        _topic: &DefaultTopic,
+        _topic: &DefaultTopic<MyEvent>,
         actor_id: &ActorId,
     ) {
         println!("Event {:?} handled by actor {}", envelope.event(), actor_id);
@@ -48,10 +48,10 @@ impl Monitor<MyEvent> for Printer {
 
 #[tokio::main]
 async fn main() -> Result {
-    let mut sup = Supervisor::<MyEvent>::default();
+    let mut sup = Supervisor::<DefaultTopic<MyEvent>>::default();
 
     // Add actor and subscribe it to all topics (DefaultTopic)
-    sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic])?;
+    sup.add_actor("greeter", |_ctx| Greeter, &[DefaultTopic::new()])?;
     sup.monitors().add(Printer).await;
 
     // Start the supervisor and send a message

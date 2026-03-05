@@ -7,7 +7,7 @@ use std::{
 use tokio::sync::mpsc::{Sender, UnboundedReceiver, unbounded_channel};
 
 use crate::{
-    ActorId, Envelope, Event, EventId, IntoEnvelope, Supervisor, Topic,
+    ActorId, Envelope, EventId, IntoEnvelope, Supervisor, Topic,
     monitoring::MonitorHandle,
     monitors::ActorMonitor,
     testing::{
@@ -44,16 +44,16 @@ use crate::{
 /// **Do not use in production.** The test harness uses an unbounded channel
 /// for event collection, which can lead to memory exhaustion under high load.
 /// For production monitoring, use the [`monitoring`](crate::monitoring) API directly.
-pub struct Harness<E: Event, T: Topic<E>> {
-    pub(super) snapshot: Vec<EventEntry<E, T>>,
-    records: EventRecords<E, T>,
-    monitor_handle: MonitorHandle<E, T>,
-    pub(super) receiver: UnboundedReceiver<EventEntry<E, T>>,
-    actor_sender: Sender<Arc<Envelope<E>>>,
+pub struct Harness<T: Topic> {
+    pub(super) snapshot: Vec<EventEntry<T>>,
+    records: EventRecords<T>,
+    monitor_handle: MonitorHandle<T>,
+    pub(super) receiver: UnboundedReceiver<EventEntry<T>>,
+    actor_sender: Sender<Arc<Envelope<T::Event>>>,
     actor_monitor: ActorMonitor,
 }
 
-impl<E: Event, T: Topic<E>> fmt::Debug for Harness<E, T> {
+impl<T: Topic> fmt::Debug for Harness<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Harness")
             .field("snapshot", &self.snapshot.len())
@@ -62,12 +62,12 @@ impl<E: Event, T: Topic<E>> fmt::Debug for Harness<E, T> {
     }
 }
 
-impl<E: Event, T: Topic<E>> Harness<E, T> {
+impl<T: Topic> Harness<T> {
     /// Create a new test harness attached to the given supervisor.
     ///
     /// Must be called before `supervisor.start()`. The harness installs
     /// an internal monitor to capture event flow.
-    pub async fn new(supervisor: &mut Supervisor<E, T>) -> Self {
+    pub async fn new(supervisor: &mut Supervisor<T>) -> Self {
         let (tx, rx) = unbounded_channel();
         let monitor = EventCollector::new(tx);
         let monitor_handle = supervisor.monitors().add(monitor).await;
@@ -132,9 +132,9 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     ///     .within(Duration::from_secs(3))
     ///     .await?;
     /// ```
-    pub fn settle_on<F>(&mut self, condition: F) -> Expectation<'_, E, T, F>
+    pub fn settle_on<F>(&mut self, condition: F) -> Expectation<'_, T, F>
     where
-        F: Fn(EventQuery<E, T>) -> bool,
+        F: Fn(EventQuery<T>) -> bool,
     {
         Expectation::new(self, condition)
     }
@@ -161,9 +161,9 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     pub fn settle_on_event<M>(
         &mut self,
         matcher: M,
-    ) -> Expectation<'_, E, T, impl Fn(EventQuery<E, T>) -> bool>
+    ) -> Expectation<'_, T, impl Fn(EventQuery<T>) -> bool>
     where
-        M: Into<EventMatcher<E, T>>,
+        M: Into<EventMatcher<T>>,
     {
         let matcher = matcher.into();
         self.settle_on(move |events| events.any(|entry| matcher.matches(entry)))
@@ -223,7 +223,7 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     ///
     /// Returns [`Error::MailboxClosed`](crate::Error::MailboxClosed) if the
     /// broker channel has been closed (e.g., after supervisor shutdown).
-    pub async fn send_as<IE: Into<IntoEnvelope<E>>>(
+    pub async fn send_as<IE: Into<IntoEnvelope<T::Event>>>(
         &self,
         actor_id: &ActorId,
         into_envelope: IE,
@@ -249,21 +249,21 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     ///     .matching_event(|e| matches!(e, MarketEvent::Order(_)))
     ///     .count();
     /// ```
-    pub fn events(&self) -> EventQuery<E, T> {
+    pub fn events(&self) -> EventQuery<T> {
         EventQuery::new(self.records.clone())
     }
 
     /// Returns a spy for observing a specific event by ID.
     ///
     /// Use this to inspect delivery and child events.
-    pub fn event(&self, id: EventId) -> EventSpy<E, T> {
+    pub fn event(&self, id: EventId) -> EventSpy<T> {
         EventSpy::new(self.records.clone(), id)
     }
 
     /// Returns a spy for observing events from a specific actor's perspective.
     ///
     /// Use this to inspect what an actor sent and received.
-    pub fn actor(&self, actor: &ActorId) -> ActorSpy<E, T> {
+    pub fn actor(&self, actor: &ActorId) -> ActorSpy<T> {
         ActorSpy::new(
             self.records.clone(),
             actor.clone(),
@@ -274,7 +274,7 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     /// Returns a spy for observing events on a specific topic.
     ///
     /// Use this to inspect event flow through a topic.
-    pub fn topic(&self, topic: T) -> TopicSpy<E, T> {
+    pub fn topic(&self, topic: T) -> TopicSpy<T> {
         TopicSpy::new(self.records.clone(), topic)
     }
 
@@ -300,7 +300,7 @@ impl<E: Event, T: Topic<E>> Harness<E, T> {
     /// // Verify event sequence
     /// assert!(chain.events().segment(&["KeyPress", "HidReport"]));
     /// ```
-    pub fn chain(&self, id: EventId) -> EventChain<E, T> {
+    pub fn chain(&self, id: EventId) -> EventChain<T> {
         EventChain::new(self.records.clone(), id)
     }
 

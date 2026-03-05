@@ -2,7 +2,7 @@
 //!
 //! - `#[derive(Event)]`: Implements `maiko::Event` for your type, preserving generics and bounds.
 //! - `#[derive(Label)]`: Implements `maiko::Label` for enums, returning variant names.
-//! - `#[derive(SelfRouting)]`: Implements `maiko::Topic<T> for T` for event-as-topic routing.
+//! - `#[derive(SelfRouting)]`: Implements `maiko::Topic for T` (with `type Event = T`) for event-as-topic routing.
 //!
 //! Usage:
 //! ```rust,ignore
@@ -111,7 +111,7 @@ pub fn derive_label(input: TokenStream) -> proc_macro::TokenStream {
     TokenStream::from(expanded)
 }
 
-/// Derives `Topic<Self> for Self` enabling event-as-topic routing.
+/// Derives `Topic for Self` enabling event-as-topic routing.
 ///
 /// When an event type is used as its own topic, each variant becomes a distinct
 /// routing category. This is common in systems like Kafka where topic names
@@ -136,7 +136,7 @@ pub fn derive_label(input: TokenStream) -> proc_macro::TokenStream {
 /// }
 ///
 /// // Now you can use PingPongEvent as both event and topic:
-/// // Supervisor::<PingPongEvent, PingPongEvent>::default()
+/// // Supervisor::<PingPongEvent>::default()
 /// ```
 #[proc_macro_derive(SelfRouting)]
 pub fn derive_self_routing(input: TokenStream) -> proc_macro::TokenStream {
@@ -147,7 +147,8 @@ pub fn derive_self_routing(input: TokenStream) -> proc_macro::TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let expanded = quote! {
-        impl #impl_generics maiko::Topic<#ident #ty_generics> for #ident #ty_generics #where_clause {
+        impl #impl_generics maiko::Topic for #ident #ty_generics #where_clause {
+            type Event = Self;
             fn from_event(event: &Self) -> Self {
                 event.clone()
             }

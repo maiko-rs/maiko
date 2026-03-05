@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{Error, Event, Result, Topic, testing::EventQuery};
+use crate::{Error, Result, Topic, testing::EventQuery};
 
 use super::Harness;
 
@@ -30,17 +30,17 @@ pub const DEFAULT_EXPECT_TIMEOUT: Duration = Duration::from_secs(1);
 ///     .within(Duration::from_secs(3))
 ///     .await?;
 /// ```
-pub struct Expectation<'a, E: Event, T: Topic<E>, F> {
-    harness: &'a mut Harness<E, T>,
+pub struct Expectation<'a, T: Topic, F> {
+    harness: &'a mut Harness<T>,
     condition: F,
     timeout: Duration,
 }
 
-impl<'a, E: Event, T: Topic<E>, F> Expectation<'a, E, T, F>
+impl<'a, T: Topic, F> Expectation<'a, T, F>
 where
-    F: Fn(EventQuery<E, T>) -> bool,
+    F: Fn(EventQuery<T>) -> bool,
 {
-    pub(crate) fn new(harness: &'a mut Harness<E, T>, condition: F) -> Self {
+    pub(crate) fn new(harness: &'a mut Harness<T>, condition: F) -> Self {
         Self {
             harness,
             condition,
@@ -63,8 +63,8 @@ where
         // entering the condition-check loop.
         self.harness
             .drain_until_quiet(
-                Harness::<E, T>::DEFAULT_SETTLE_WINDOW,
-                Harness::<E, T>::DEFAULT_MAX_SETTLE,
+                Harness::<T>::DEFAULT_SETTLE_WINDOW,
+                Harness::<T>::DEFAULT_MAX_SETTLE,
             )
             .await;
 
@@ -122,9 +122,9 @@ where
     }
 }
 
-impl<'a, E: Event, T: Topic<E>, F> IntoFuture for Expectation<'a, E, T, F>
+impl<'a, T: Topic, F> IntoFuture for Expectation<'a, T, F>
 where
-    F: Fn(EventQuery<E, T>) -> bool + 'a,
+    F: Fn(EventQuery<T>) -> bool + 'a,
 {
     type Output = Result;
     type IntoFuture = std::pin::Pin<Box<dyn std::future::Future<Output = Self::Output> + 'a>>;
@@ -134,7 +134,7 @@ where
     }
 }
 
-impl<E: Event, T: Topic<E>, F> fmt::Debug for Expectation<'_, E, T, F> {
+impl<T: Topic, F> fmt::Debug for Expectation<'_, T, F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Expectation")
             .field("harness", &self.harness)
@@ -148,7 +148,7 @@ mod tests {
     use std::time::Duration;
 
     use crate::{
-        Actor, Envelope, Event, Label, Result, Subscribe, Supervisor,
+        Actor, DefaultTopic, Envelope, Event, Label, Result, Subscribe, Supervisor,
         testing::{EventMatcher, Harness},
     };
     use std::borrow::Cow;
@@ -190,8 +190,12 @@ mod tests {
         type Event = TestEvent;
     }
 
-    async fn setup() -> (Supervisor<TestEvent>, crate::ActorId, crate::ActorId) {
-        let mut sup = Supervisor::<TestEvent>::default();
+    async fn setup() -> (
+        Supervisor<DefaultTopic<TestEvent>>,
+        crate::ActorId,
+        crate::ActorId,
+    ) {
+        let mut sup = Supervisor::<DefaultTopic<TestEvent>>::default();
         let echo = sup
             .add_actor("echo", |ctx| Echo { ctx }, Subscribe::all())
             .unwrap();

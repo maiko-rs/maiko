@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::sync::Arc;
 
-use crate::{ActorId, Event, EventId, Label, Topic};
+use crate::{ActorId, EventId, Label, Topic};
 
 use super::{ActorTrace, EventEntry, EventMatcher, EventRecords, EventTrace};
 
@@ -34,19 +34,28 @@ use super::{ActorTrace, EventEntry, EventMatcher, EventRecords, EventTrace};
 /// // Verify event sequence
 /// assert!(chain.events().segment(&["KeyPress", "HidReport"]));
 /// ```
-#[derive(Debug)]
-pub struct EventChain<E: Event, T: Topic<E>> {
+pub struct EventChain<T: Topic> {
     root_id: EventId,
-    records: EventRecords<E, T>,
+    records: EventRecords<T>,
     /// All event IDs in this chain (root and all descendants)
     chain_ids: HashSet<EventId>,
     /// Parent-to-children mapping
     children_map: HashMap<EventId, Vec<EventId>>,
 }
 
-impl<E: Event, T: Topic<E>> EventChain<E, T> {
+impl<T: Topic> fmt::Debug for EventChain<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EventChain")
+            .field("root_id", &self.root_id)
+            .field("chain_ids", &self.chain_ids)
+            .field("children_map", &self.children_map)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T: Topic> EventChain<T> {
     /// Create a new event chain starting from the given root event ID.
-    pub(crate) fn new(records: EventRecords<E, T>, root_id: EventId) -> Self {
+    pub(crate) fn new(records: EventRecords<T>, root_id: EventId) -> Self {
         let mut chain_ids = HashSet::new();
         let mut children_map: HashMap<EventId, Vec<EventId>> = HashMap::new();
 
@@ -97,12 +106,12 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
     }
 
     /// Returns an actor trace view for querying actor-based patterns.
-    pub fn actors(&self) -> ActorTrace<'_, E, T> {
+    pub fn actors(&self) -> ActorTrace<'_, T> {
         ActorTrace { chain: self }
     }
 
     /// Returns an event trace view for querying event-based patterns.
-    pub fn events(&self) -> EventTrace<'_, E, T> {
+    pub fn events(&self) -> EventTrace<'_, T> {
         EventTrace { chain: self }
     }
 
@@ -110,9 +119,9 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
     ///
     /// This is useful for testing fan-out patterns where one event triggers multiple
     /// independent processing paths.
-    pub fn diverges_after(&self, matcher: impl Into<EventMatcher<E, T>>) -> bool
+    pub fn diverges_after(&self, matcher: impl Into<EventMatcher<T>>) -> bool
     where
-        E: Label,
+        T::Event: Label,
     {
         let matcher = matcher.into();
         for entry in self.chain_entries() {
@@ -127,9 +136,9 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
     }
 
     /// Returns the number of branches after the specified event.
-    pub fn branches_after(&self, matcher: impl Into<EventMatcher<E, T>>) -> usize
+    pub fn branches_after(&self, matcher: impl Into<EventMatcher<T>>) -> usize
     where
-        E: Label,
+        T::Event: Label,
     {
         let matcher = matcher.into();
         for entry in self.chain_entries() {
@@ -144,7 +153,7 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
     /// Returns a sub-chain representing the path to a specific actor.
     ///
     /// The path includes all events from the root to any event received by the target actor.
-    pub fn path_to(&self, actor: &ActorId) -> EventChain<E, T> {
+    pub fn path_to(&self, actor: &ActorId) -> EventChain<T> {
         // Find events received by this actor in the chain
         let target_ids: HashSet<EventId> = self
             .chain_entries()
@@ -247,7 +256,7 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
     /// Each path is a sequence of event entries following the parent-child tree.
     /// One representative entry per event (fan-out to multiple receivers does not
     /// create separate event paths - only distinct child events do).
-    pub(super) fn event_paths(&self) -> Vec<Vec<&EventEntry<E, T>>> {
+    pub(super) fn event_paths(&self) -> Vec<Vec<&EventEntry<T>>> {
         let mut paths = Vec::new();
 
         if let Some(root_entry) = self.records.iter().find(|e| e.id() == self.root_id) {
@@ -260,8 +269,8 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
     fn build_event_paths_dfs<'a>(
         &'a self,
         event_id: EventId,
-        current_path: Vec<&'a EventEntry<E, T>>,
-        paths: &mut Vec<Vec<&'a EventEntry<E, T>>>,
+        current_path: Vec<&'a EventEntry<T>>,
+        paths: &mut Vec<Vec<&'a EventEntry<T>>>,
     ) {
         let children = self.children_of(event_id);
 
@@ -279,21 +288,21 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
     }
 
     /// Returns an iterator over all entries in this chain.
-    pub(super) fn chain_entries(&self) -> impl Iterator<Item = &EventEntry<E, T>> {
+    pub(super) fn chain_entries(&self) -> impl Iterator<Item = &EventEntry<T>> {
         self.records
             .iter()
             .filter(|e| self.chain_ids.contains(&e.id()))
     }
 
     /// Returns events in order (BFS from root).
-    pub(super) fn ordered_entries(&self) -> Vec<&EventEntry<E, T>> {
+    pub(super) fn ordered_entries(&self) -> Vec<&EventEntry<T>> {
         let mut result = Vec::new();
         let mut queue = VecDeque::new();
         queue.push_back(self.root_id);
         let mut visited = HashSet::new();
 
         // Build id -> entries map (an event can have multiple entries for different receivers)
-        let entries_by_id: HashMap<EventId, Vec<&EventEntry<E, T>>> = self
+        let entries_by_id: HashMap<EventId, Vec<&EventEntry<T>>> = self
             .records
             .iter()
             .filter(|e| self.chain_ids.contains(&e.id()))
@@ -317,7 +326,10 @@ impl<E: Event, T: Topic<E>> EventChain<E, T> {
     }
 }
 
-impl<E: Event + Label, T: Topic<E>> EventChain<E, T> {
+impl<T: Topic> EventChain<T>
+where
+    T::Event: Label,
+{
     /// Returns a string representation of the chain as a tree.
     pub fn to_string_tree(&self) -> String {
         let mut output = String::new();
@@ -439,7 +451,10 @@ fn sanitize_mermaid_id(s: &str) -> String {
         .collect()
 }
 
-impl<E: Event + Label, T: Topic<E>> fmt::Display for EventChain<E, T> {
+impl<T: Topic> fmt::Display for EventChain<T>
+where
+    T::Event: Label,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_string_tree())
     }
@@ -448,7 +463,7 @@ impl<E: Event + Label, T: Topic<E>> fmt::Display for EventChain<E, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DefaultTopic, Envelope, Label};
+    use crate::{DefaultTopic, Envelope, Event, Label};
     use std::borrow::Cow;
     use std::sync::Arc;
 
@@ -473,8 +488,8 @@ mod tests {
         }
     }
 
-    fn topic() -> Arc<DefaultTopic> {
-        Arc::new(DefaultTopic)
+    fn topic() -> Arc<DefaultTopic<TestEvent>> {
+        Arc::new(DefaultTopic::new())
     }
 
     fn actor(name: &str) -> ActorId {
@@ -483,7 +498,7 @@ mod tests {
 
     /// Helper to build a chain of events for testing.
     /// Returns (records, root_id) where records is a Vec of EventEntry.
-    fn build_linear_chain() -> (EventRecords<TestEvent, DefaultTopic>, EventId) {
+    fn build_linear_chain() -> (EventRecords<DefaultTopic<TestEvent>>, EventId) {
         // Chain: Start -> Process -> Complete
         // Actors: alice -> bob -> charlie
         let alice = actor("alice");
@@ -514,7 +529,7 @@ mod tests {
     }
 
     /// Build a branching chain: Start dispatches to Process and Branch
-    fn build_branching_chain() -> (EventRecords<TestEvent, DefaultTopic>, EventId) {
+    fn build_branching_chain() -> (EventRecords<DefaultTopic<TestEvent>>, EventId) {
         let alice = actor("alice");
         let bob = actor("bob");
         let charlie = actor("charlie");
@@ -857,7 +872,7 @@ mod tests {
 
     #[test]
     fn empty_chain_handles_gracefully() {
-        let chain: EventChain<TestEvent, DefaultTopic> =
+        let chain: EventChain<DefaultTopic<TestEvent>> =
             EventChain::new(Arc::new(vec![]), EventId::from(0));
 
         assert!(!chain.diverges_after("Anything"));
@@ -919,7 +934,7 @@ mod tests {
 
     #[test]
     fn to_string_tree_handles_empty_chain() {
-        let chain: EventChain<TestEvent, DefaultTopic> =
+        let chain: EventChain<DefaultTopic<TestEvent>> =
             EventChain::new(Arc::new(vec![]), EventId::from(0));
         let tree = chain.to_string_tree();
 
@@ -984,7 +999,7 @@ mod tests {
 
     #[test]
     fn to_mermaid_handles_empty_chain() {
-        let chain: EventChain<TestEvent, DefaultTopic> =
+        let chain: EventChain<DefaultTopic<TestEvent>> =
             EventChain::new(Arc::new(vec![]), EventId::from(0));
         let mermaid = chain.to_mermaid();
 

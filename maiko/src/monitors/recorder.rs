@@ -1,4 +1,4 @@
-use crate::{ActorId, Envelope, Event, Topic, monitoring::Monitor};
+use crate::{ActorId, Envelope, Topic, monitoring::Monitor};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::fs::File;
@@ -39,12 +39,12 @@ impl Recorder {
     }
 }
 
-impl<E, T> Monitor<E, T> for Recorder
+impl<T> Monitor<T> for Recorder
 where
-    E: Event + Serialize,
-    T: Topic<E>,
+    T: Topic,
+    T::Event: Serialize,
 {
-    fn on_event_dispatched(&self, envelope: &Envelope<E>, _topic: &T, _receiver: &ActorId) {
+    fn on_event_dispatched(&self, envelope: &Envelope<T::Event>, _topic: &T, _receiver: &ActorId) {
         if let Ok(mut writer) = self.writer.try_borrow_mut() {
             if let Err(e) = serde_json::to_writer(&mut *writer, envelope) {
                 tracing::warn!("Recorder failed to serialize event: {}", e);
@@ -60,7 +60,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DefaultTopic;
+    use crate::{DefaultTopic, Event};
     use serde::Serialize;
     use std::io::Read;
 
@@ -78,7 +78,7 @@ mod tests {
         let envelope = Envelope::new(event.clone(), sender_id);
         let receiver_id = ActorId::new("receiver");
 
-        recorder.on_event_dispatched(&envelope, &DefaultTopic, &receiver_id);
+        recorder.on_event_dispatched(&envelope, &DefaultTopic::new(), &receiver_id);
 
         let mut file = File::open(&path).expect("Failed to open log file");
         let mut content = String::new();

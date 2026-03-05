@@ -14,10 +14,7 @@ use maiko::{ActorId, Envelope, Event, Topic};
 use std::hash::Hash;
 use std::hint::black_box;
 
-use std::{
-    collections::{HashMap, HashSet},
-    marker::PhantomData,
-};
+use std::collections::{HashMap, HashSet};
 use tracing::warn;
 
 const TOPIC_COUNT: usize = 32;
@@ -34,7 +31,9 @@ impl Event for BenchEvent {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct BenchTopic(u16);
 
-impl Topic<BenchEvent> for BenchTopic {
+impl Topic for BenchTopic {
+    type Event = BenchEvent;
+
     fn from_event(event: &BenchEvent) -> Self {
         event.topic
     }
@@ -58,20 +57,18 @@ impl<T: Eq + Hash> Subscription<T> {
 }
 
 #[derive(Debug, Clone)]
-struct Subscriber<E: Event, T: Topic<E>> {
+struct Subscriber<T: Topic> {
     actor_id: ActorId,
     topics: Subscription<T>,
     closed: bool,
-    _event: PhantomData<E>,
 }
 
-impl<E: Event, T: Topic<E>> Subscriber<E, T> {
+impl<T: Topic> Subscriber<T> {
     fn new(actor_id: ActorId, topics: Subscription<T>, closed: bool) -> Self {
         Self {
             actor_id,
             topics,
             closed,
-            _event: PhantomData,
         }
     }
 
@@ -80,22 +77,22 @@ impl<E: Event, T: Topic<E>> Subscriber<E, T> {
     }
 }
 
-struct BrokerVec<E: Event, T: Topic<E>> {
-    subscribers: Vec<Subscriber<E, T>>,
+struct BrokerVec<T: Topic> {
+    subscribers: Vec<Subscriber<T>>,
 }
 
-impl<E: Event, T: Topic<E>> BrokerVec<E, T> {
+impl<T: Topic> BrokerVec<T> {
     fn new() -> Self {
         Self {
             subscribers: Vec::new(),
         }
     }
 
-    fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) {
+    fn add_subscriber(&mut self, subscriber: Subscriber<T>) {
         self.subscribers.push(subscriber);
     }
 
-    fn fetch_subscribers(&self, e: &Envelope<E>) -> usize {
+    fn fetch_subscribers(&self, e: &Envelope<T::Event>) -> usize {
         let topic = T::from_event(e.event());
 
         self.subscribers
@@ -107,13 +104,13 @@ impl<E: Event, T: Topic<E>> BrokerVec<E, T> {
     }
 }
 
-struct BrokerHashMap<E: Event, T: Topic<E>> {
-    subscribers: HashMap<ActorId, Subscriber<E, T>>,
+struct BrokerHashMap<T: Topic> {
+    subscribers: HashMap<ActorId, Subscriber<T>>,
     subscribers_by_topic: HashMap<T, Vec<ActorId>>,
     subscribers_for_all: Vec<ActorId>,
 }
 
-impl<E: Event, T: Topic<E>> BrokerHashMap<E, T> {
+impl<T: Topic> BrokerHashMap<T> {
     fn new() -> Self {
         Self {
             subscribers: HashMap::new(),
@@ -122,7 +119,7 @@ impl<E: Event, T: Topic<E>> BrokerHashMap<E, T> {
         }
     }
 
-    fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) {
+    fn add_subscriber(&mut self, subscriber: Subscriber<T>) {
         let actor_id = subscriber.actor_id.clone();
 
         match &subscriber.topics {
@@ -141,7 +138,7 @@ impl<E: Event, T: Topic<E>> BrokerHashMap<E, T> {
         self.subscribers.insert(actor_id, subscriber);
     }
 
-    fn fetch_subscribers(&self, e: &Envelope<E>) -> usize {
+    fn fetch_subscribers(&self, e: &Envelope<T::Event>) -> usize {
         let topic = T::from_event(e.event());
 
         self.subscribers_by_topic
@@ -184,18 +181,18 @@ fn create_subscription(subscriber_index: usize) -> Subscription<BenchTopic> {
 fn build_fictional_brokers(
     subscriber_count: usize,
 ) -> (
-    BrokerVec<BenchEvent, BenchTopic>,
-    BrokerHashMap<BenchEvent, BenchTopic>,
+    BrokerVec<BenchTopic>,
+    BrokerHashMap<BenchTopic>,
     Vec<Envelope<BenchEvent>>,
 ) {
-    let mut broker_vec = BrokerVec::<BenchEvent, BenchTopic>::new();
-    let mut broker_hash_map = BrokerHashMap::<BenchEvent, BenchTopic>::new();
+    let mut broker_vec = BrokerVec::<BenchTopic>::new();
+    let mut broker_hash_map = BrokerHashMap::<BenchTopic>::new();
 
     for subscriber_index in 0..subscriber_count {
         let actor_id = ActorId::from(format!("actor-{subscriber_index}"));
         let topics = create_subscription(subscriber_index);
         let closed = subscriber_index % 17 == 0;
-        let subscriber = Subscriber::<BenchEvent, BenchTopic>::new(actor_id, topics, closed);
+        let subscriber = Subscriber::<BenchTopic>::new(actor_id, topics, closed);
 
         broker_vec.add_subscriber(subscriber.clone());
         broker_hash_map.add_subscriber(subscriber);

@@ -6,17 +6,17 @@ use std::sync::{
 use tokio::sync::mpsc::Sender;
 
 use crate::{
-    Event, Topic,
+    Topic,
     monitoring::{MonitorCommand, MonitoringEvent},
 };
 
-pub(crate) struct MonitoringSink<E: Event, T: Topic<E>> {
+pub(crate) struct MonitoringSink<T: Topic> {
     is_active: Arc<AtomicBool>,
-    sender: Sender<MonitorCommand<E, T>>,
+    sender: Sender<MonitorCommand<T>>,
 }
 
-impl<E: Event, T: Topic<E>> MonitoringSink<E, T> {
-    pub fn new(sender: Sender<MonitorCommand<E, T>>, is_active: Arc<AtomicBool>) -> Self {
+impl<T: Topic> MonitoringSink<T> {
+    pub fn new(sender: Sender<MonitorCommand<T>>, is_active: Arc<AtomicBool>) -> Self {
         Self { sender, is_active }
     }
 
@@ -26,7 +26,7 @@ impl<E: Event, T: Topic<E>> MonitoringSink<E, T> {
     }
 
     #[inline]
-    pub fn send(&self, event: MonitoringEvent<E, T>) {
+    pub fn send(&self, event: MonitoringEvent<T>) {
         let msg = MonitorCommand::DispatchEvent(event);
         let _ = self.sender.try_send(msg);
     }

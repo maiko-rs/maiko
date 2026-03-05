@@ -2,19 +2,22 @@
 
 use std::collections::HashSet;
 
-use crate::{Event, Label, Topic};
+use crate::{Label, Topic};
 
 use super::{EventChain, EventEntry, EventMatcher};
 
 /// Event trace view for querying the sequence of events in the chain.
 #[derive(Debug)]
-pub struct EventTrace<'a, E: Event, T: Topic<E>> {
-    pub(super) chain: &'a EventChain<E, T>,
+pub struct EventTrace<'a, T: Topic> {
+    pub(super) chain: &'a EventChain<T>,
 }
 
-impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
+impl<T: Topic> EventTrace<'_, T>
+where
+    T::Event: Label,
+{
     /// Returns all unique events in this chain (unordered).
-    pub fn all(&self) -> Vec<&EventEntry<E, T>> {
+    pub fn all(&self) -> Vec<&EventEntry<T>> {
         let mut seen_ids = HashSet::new();
         self.chain
             .chain_entries()
@@ -26,7 +29,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
     ///
     /// Each unique event appears once, in the order it was reached
     /// during chain traversal.
-    pub fn ordered(&self) -> Vec<&EventEntry<E, T>> {
+    pub fn ordered(&self) -> Vec<&EventEntry<T>> {
         let mut seen_ids = HashSet::new();
         self.chain
             .ordered_entries()
@@ -36,7 +39,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
     }
 
     /// Returns true if the chain contains an event matching the given matcher.
-    pub fn contains(&self, matcher: impl Into<EventMatcher<E, T>>) -> bool {
+    pub fn contains(&self, matcher: impl Into<EventMatcher<T>>) -> bool {
         let matcher = matcher.into();
         self.chain.chain_entries().any(|e| matcher.matches(e))
     }
@@ -47,7 +50,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
     /// chains, returns true if any single branch matches.
     pub fn exact<M>(&self, matchers: &[M]) -> bool
     where
-        M: Into<EventMatcher<E, T>> + Clone,
+        M: Into<EventMatcher<T>> + Clone,
     {
         if matchers.is_empty() {
             return true;
@@ -70,7 +73,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
     /// chains, returns true if any single branch contains the contiguous segment.
     pub fn segment<M>(&self, matchers: &[M]) -> bool
     where
-        M: Into<EventMatcher<E, T>> + Clone,
+        M: Into<EventMatcher<T>> + Clone,
     {
         if matchers.is_empty() {
             return true;
@@ -89,7 +92,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
     /// chains, returns true if any single branch passes through the matchers.
     pub fn passes_through<M>(&self, matchers: &[M]) -> bool
     where
-        M: Into<EventMatcher<E, T>> + Clone,
+        M: Into<EventMatcher<T>> + Clone,
     {
         if matchers.is_empty() {
             return true;
@@ -107,7 +110,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
         self.chain.event_paths().len()
     }
 
-    fn contains_contiguous(path: &[&EventEntry<E, T>], matchers: &[EventMatcher<E, T>]) -> bool {
+    fn contains_contiguous(path: &[&EventEntry<T>], matchers: &[EventMatcher<T>]) -> bool {
         if matchers.len() > path.len() {
             return false;
         }
@@ -119,7 +122,7 @@ impl<E: Event + Label, T: Topic<E>> EventTrace<'_, E, T> {
         })
     }
 
-    fn contains_subsequence(path: &[&EventEntry<E, T>], matchers: &[EventMatcher<E, T>]) -> bool {
+    fn contains_subsequence(path: &[&EventEntry<T>], matchers: &[EventMatcher<T>]) -> bool {
         let mut matcher_idx = 0;
         for entry in path {
             if matcher_idx >= matchers.len() {

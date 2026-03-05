@@ -1,4 +1,4 @@
-use crate::{ActorId, Envelope, Event, OverflowPolicy, Topic, monitoring::Monitor};
+use crate::{ActorId, Envelope, OverflowPolicy, Topic, monitoring::Monitor};
 
 /// A monitor that logs event lifecycle to the `tracing` crate.
 ///
@@ -18,12 +18,12 @@ use crate::{ActorId, Envelope, Event, OverflowPolicy, Topic, monitoring::Monitor
 #[derive(Debug)]
 pub struct Tracer;
 
-impl<E, T> Monitor<E, T> for Tracer
+impl<T> Monitor<T> for Tracer
 where
-    E: Event + std::fmt::Debug,
-    T: Topic<E> + std::fmt::Debug,
+    T: Topic + std::fmt::Debug,
+    T::Event: std::fmt::Debug,
 {
-    fn on_event_dispatched(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+    fn on_event_dispatched(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         tracing::trace!(
             event_id = %envelope.id(),
             sender = %envelope.meta().actor_name(),
@@ -33,7 +33,7 @@ where
         );
     }
 
-    fn on_event_delivered(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+    fn on_event_delivered(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         tracing::trace!(
             event_id = %envelope.id(),
             receiver = %receiver.as_str(),
@@ -42,7 +42,7 @@ where
         );
     }
 
-    fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+    fn on_event_handled(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         tracing::debug!(
             event_id = %envelope.id(),
             sender = %envelope.meta().actor_name(),
@@ -77,7 +77,7 @@ where
 
     fn on_overflow(
         &self,
-        envelope: &Envelope<E>,
+        envelope: &Envelope<T::Event>,
         topic: &T,
         receiver: &ActorId,
         policy: OverflowPolicy,

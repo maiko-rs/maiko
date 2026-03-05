@@ -28,7 +28,7 @@ use maiko::*;
 
 /// Event types for the ping-pong system.
 ///
-/// The `SelfRouting` derive implements `Topic<PingPongEvent> for PingPongEvent`,
+/// The `SelfRouting` derive implements `Topic for PingPongEvent` with `type Event = PingPongEvent`,
 /// enabling event-as-topic routing where each event variant becomes its own topic.
 /// A `Ping` event routes to actors subscribed to the `Ping` topic, and `Pong` to `Pong`.
 #[derive(Event, SelfRouting, Clone, Debug, Hash, PartialEq, Eq)]
@@ -87,8 +87,8 @@ impl Actor for Counter {
 
 #[tokio::main]
 pub async fn main() -> Result {
-    // Create a supervisor with PingPongEvent as both the event and topic type
-    let mut sup = Supervisor::<PingPongEvent, PingPongEvent>::default();
+    // Create a supervisor with PingPongEvent as the topic type (SelfRouting: Topic::Event = PingPongEvent)
+    let mut sup = Supervisor::<PingPongEvent>::default();
 
     // Adds actors that subscribes ONLY to one type of event
     sup.add_actor("Ping", |ctx| PingPong { ctx }, [PingPongEvent::Pong])?;

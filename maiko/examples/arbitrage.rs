@@ -86,7 +86,9 @@ enum MarketTopic {
     Order(Exchange),
 }
 
-impl Topic<MarketEvent> for MarketTopic {
+impl Topic for MarketTopic {
+    type Event = MarketEvent;
+
     fn from_event(event: &MarketEvent) -> Self {
         use MarketEvent::*;
         match event {
@@ -228,7 +230,7 @@ async fn main() -> maiko::Result {
     use MarketTopic::*;
 
     // Set up the actor system
-    let mut sup = maiko::Supervisor::<MarketEvent, MarketTopic>::default();
+    let mut sup = maiko::Supervisor::<MarketTopic>::default();
 
     let alpha_ticker = sup.add_actor("AlphaTicker", |_| Ticker, [Order(Alpha)])?;
     let beta_ticker = sup.add_actor("BetaTicker", |_| Ticker, [Order(Beta)])?;

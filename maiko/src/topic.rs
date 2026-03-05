@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use std::{hash::Hash, marker::PhantomData};
 
 use crate::{OverflowPolicy, event::Event};
 
@@ -14,10 +14,10 @@ use crate::{OverflowPolicy, event::Event};
 /// Common patterns:
 /// - Enum topics for simple classification.
 /// - Struct topics when you need richer metadata (e.g., names or IDs).
-///
-/// Trait bounds: refer to the event trait as [`crate::Event`] in generic
-/// signatures to avoid confusion with the `Event` derive macro.
-pub trait Topic<E: Event>: Hash + PartialEq + Eq + Clone + Send + Sync + 'static {
+pub trait Topic: Hash + PartialEq + Eq + Clone + Send + Sync + 'static {
+    /// The event type this topic classifies.
+    type Event: Event;
+
     /// Classify an event into a topic.
     ///
     /// Called by the broker for every incoming event to determine which
@@ -32,7 +32,7 @@ pub trait Topic<E: Event>: Hash + PartialEq + Eq + Clone + Send + Sync + 'static
     ///     }
     /// }
     /// ```
-    fn from_event(event: &E) -> Self;
+    fn from_event(event: &Self::Event) -> Self;
 
     /// Returns the overflow policy for this topic.
     ///
@@ -60,27 +60,56 @@ pub trait Topic<E: Event>: Hash + PartialEq + Eq + Clone + Send + Sync + 'static
 /// Unit topic for systems that don't need topic-based routing.
 ///
 /// Since every event maps to the same single topic, actors subscribing to
-/// `DefaultTopic` will receive all events. This is the default generic
-/// parameter on [`Supervisor`](crate::Supervisor), keeping simple setups
-/// free of a custom topic type.
+/// `DefaultTopic` will receive all events. Use `DefaultTopic<E>` as the
+/// topic type parameter when you don't need custom routing.
 ///
 /// # Examples
 ///
 /// ```rust,ignore
 /// use maiko::{Supervisor, DefaultTopic};
-/// let mut sup = Supervisor::<MyEvent>::default();
-/// sup.add_actor("actor", |ctx| MyActor { ctx }, &[DefaultTopic])?;
+/// let mut sup = Supervisor::<DefaultTopic<MyEvent>>::default();
+/// sup.add_actor("actor", |ctx| MyActor { ctx }, &[DefaultTopic::new()])?;
 /// ```
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
-pub struct DefaultTopic;
+#[derive(Debug, Clone, Copy)]
+pub struct DefaultTopic<E>(PhantomData<fn() -> E>);
 
-impl<E: Event> Topic<E> for DefaultTopic {
-    fn from_event(_event: &E) -> DefaultTopic {
-        DefaultTopic
+// Manual impls avoid requiring E: Hash/Eq/PartialEq since
+// PhantomData<fn() -> E> is a ZST that doesn't depend on E.
+impl<E> Hash for DefaultTopic<E> {
+    fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {}
+}
+
+impl<E> PartialEq for DefaultTopic<E> {
+    fn eq(&self, _other: &Self) -> bool {
+        true
     }
 }
 
-impl std::fmt::Display for DefaultTopic {
+impl<E> Eq for DefaultTopic<E> {}
+
+impl<E> DefaultTopic<E> {
+    /// Create a new `DefaultTopic` value.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<E> Default for DefaultTopic<E> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<E: Event> Topic for DefaultTopic<E> {
+    type Event = E;
+
+    fn from_event(_event: &E) -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<E> std::fmt::Display for DefaultTopic<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "default")
     }
@@ -120,7 +149,9 @@ mod tests {
             IoT,
             System,
         }
-        impl Topic<TestEvent> for TestTopic {
+        impl Topic for TestTopic {
+            type Event = TestEvent;
+
             fn from_event(event: &TestEvent) -> Self {
                 match event {
                     TestEvent::Temperature(_) | TestEvent::Humidity(_) => TestTopic::IoT,
@@ -159,7 +190,9 @@ mod tests {
         struct TestTopic {
             name: String,
         }
-        impl Topic<TestEvent> for TestTopic {
+        impl Topic for TestTopic {
+            type Event = TestEvent;
+
             fn from_event(event: &TestEvent) -> Self {
                 match event {
                     TestEvent::Temperature(_) | TestEvent::Humidity(_) => TestTopic {

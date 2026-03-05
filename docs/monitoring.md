@@ -33,13 +33,13 @@ use maiko::monitoring::Monitor;
 
 struct EventLogger;
 
-impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
-    fn on_event_dispatched(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+impl<T: Topic> Monitor<T> for EventLogger {
+    fn on_event_dispatched(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         println!("[dispatched] {} -> {} (topic: {:?})",
             envelope.meta().actor_name(), receiver.as_str(), topic);
     }
 
-    fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {
+    fn on_event_handled(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {
         println!("[handled] {} processed by {}",
             envelope.id(), receiver.as_str());
     }
@@ -47,7 +47,7 @@ impl<E: Event, T: Topic<E>> Monitor<E, T> for EventLogger {
 
 #[tokio::main]
 async fn main() -> maiko::Result {
-    let mut sup = maiko::Supervisor::<MyEvent>::default();
+    let mut sup = maiko::Supervisor::<DefaultTopic<MyEvent>>::default();
 
     // Register the monitor
     let handle = sup.monitors().add(EventLogger).await;
@@ -117,15 +117,15 @@ The [test harness](testing.md) is a specialized monitor for testing. It captures
 The `Monitor` trait provides callbacks for different lifecycle events. All methods have default no-op implementations, so you only need to implement the ones you care about:
 
 ```rust
-pub trait Monitor<E: Event, T: Topic<E>>: Send {
+pub trait Monitor<T: Topic>: Send {
     /// Called when the broker dispatches an event to a subscriber.
-    fn on_event_dispatched(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {}
+    fn on_event_dispatched(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {}
 
     /// Called when an actor receives an event from its mailbox.
-    fn on_event_delivered(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {}
+    fn on_event_delivered(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {}
 
     /// Called after an actor finishes processing an event.
-    fn on_event_handled(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId) {}
+    fn on_event_handled(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId) {}
 
     /// Called when a new actor is registered in the system.
     fn on_actor_registered(&self, actor_id: &ActorId) {}
@@ -140,7 +140,7 @@ pub trait Monitor<E: Event, T: Topic<E>>: Send {
     fn on_step_exit(&self, step_action: &StepAction, actor_id: &ActorId) {}
 
     /// Called when a subscriber's channel is full (see OverflowPolicy).
-    fn on_overflow(&self, envelope: &Envelope<E>, topic: &T, receiver: &ActorId, policy: OverflowPolicy) {}
+    fn on_overflow(&self, envelope: &Envelope<T::Event>, topic: &T, receiver: &ActorId, policy: OverflowPolicy) {}
 
     /// Called when an actor stops.
     fn on_actor_stop(&self, actor_id: &ActorId) {}
@@ -222,12 +222,12 @@ impl MetricsMonitor {
     }
 }
 
-impl<E: Event, T: Topic<E>> Monitor<E, T> for MetricsMonitor {
-    fn on_event_dispatched(&self, _: &Envelope<E>, _: &T, _: &ActorId) {
+impl<T: Topic> Monitor<T> for MetricsMonitor {
+    fn on_event_dispatched(&self, _: &Envelope<T::Event>, _: &T, _: &ActorId) {
         self.dispatched.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn on_event_handled(&self, _: &Envelope<E>, _: &T, _: &ActorId) {
+    fn on_event_handled(&self, _: &Envelope<T::Event>, _: &T, _: &ActorId) {
         self.handled.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -273,7 +273,7 @@ The monitoring channel has a default capacity of 1024 messages. If monitors can'
 
 ```rust
 let config = SupervisorConfig::default().with_monitoring_channel_size(4096);
-let sup = Supervisor::<MyEvent>::new(config);
+let sup = Supervisor::<DefaultTopic<MyEvent>>::new(config);
 ```
 
 ## Relationship to Test Harness

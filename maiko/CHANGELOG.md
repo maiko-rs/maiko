@@ -37,6 +37,7 @@
 
 ### Changed
 
+- **Breaking:** `Topic<E>` trait changed to associated-type design: `Topic` with `type Event: Event`. Types that were `<E: Event, T: Topic<E>>` are now `<T: Topic>`, using `T::Event` where `E` was used. `DefaultTopic` is now `DefaultTopic<E>` (generic). `Supervisor<E, T>` simplified to `Supervisor<T>`.
 - **Breaking:** `Config` renamed to `SupervisorConfig` ([#95])
 - **Breaking:** `Actor::on_error()` takes `&mut self` instead of `&self` ([#95])
 - **Breaking:** `Error::IoError` now wraps `Arc<std::io::Error>` with `#[source]` (was `String`) ([#95])

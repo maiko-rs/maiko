@@ -48,7 +48,9 @@ enum Topic {
     Telemetry,
 }
 
-impl maiko::Topic<Event> for Topic {
+impl maiko::Topic for Topic {
+    type Event = Event;
+
     fn from_event(event: &Event) -> Self
     where
         Self: Sized,
@@ -186,7 +188,7 @@ async fn run() -> maiko::Result {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    let mut sup = Supervisor::<Event, Topic>::default();
+    let mut sup = Supervisor::<Topic>::default();
     sup.add_actor(
         "producer",
         |ctx| Producer {

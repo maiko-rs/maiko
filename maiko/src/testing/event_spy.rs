@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    ActorId, Event, EventId, Topic,
+    ActorId, EventId, Topic,
     testing::{EventQuery, EventRecords},
 };
 
@@ -10,13 +10,13 @@ use crate::{
 /// Provides methods to inspect:
 /// - Whether and where the event was delivered
 /// - Child events linked to this event via parent ID
-pub struct EventSpy<E: Event, T: Topic<E>> {
+pub struct EventSpy<T: Topic> {
     id: EventId,
-    records: EventRecords<E, T>,
-    query: EventQuery<E, T>,
+    records: EventRecords<T>,
+    query: EventQuery<T>,
 }
 
-impl<E: Event, T: Topic<E>> fmt::Debug for EventSpy<E, T> {
+impl<T: Topic> fmt::Debug for EventSpy<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EventSpy")
             .field("id", &self.id)
@@ -25,8 +25,8 @@ impl<E: Event, T: Topic<E>> fmt::Debug for EventSpy<E, T> {
     }
 }
 
-impl<E: Event, T: Topic<E>> EventSpy<E, T> {
-    pub(crate) fn new(records: EventRecords<E, T>, id: impl Into<EventId>) -> Self {
+impl<T: Topic> EventSpy<T> {
+    pub(crate) fn new(records: EventRecords<T>, id: impl Into<EventId>) -> Self {
         let id = id.into();
         let query = EventQuery::new(records.clone()).with_id(id);
         Self { id, records, query }
@@ -64,7 +64,7 @@ impl<E: Event, T: Topic<E>> EventSpy<E, T> {
     }
 
     /// Returns a query for child events (events whose parent ID matches this event's ID).
-    pub fn children(&self) -> EventQuery<E, T> {
+    pub fn children(&self) -> EventQuery<T> {
         EventQuery::new(self.records.clone()).children_of(self.id)
     }
 
@@ -102,8 +102,8 @@ mod tests {
     struct TestEvent(i32);
     impl Event for TestEvent {}
 
-    fn topic() -> Arc<DefaultTopic> {
-        Arc::new(DefaultTopic)
+    fn topic() -> Arc<DefaultTopic<TestEvent>> {
+        Arc::new(DefaultTopic::new())
     }
 
     #[test]
