@@ -1,3 +1,24 @@
+# [0.3.1](https://github.com/maiko-rs/maiko/compare/v0.3.0...v0.3.1) (March 5th, 2026)
+
+
+### Changed
+
+- Broker internals changed for improved lookup performance ([#103])
+
+### Added
+
+- Dev-dependency to Criterion ([#103])
+- Benches to measure lookup performance ([#103])
+
+### Bugfixes
+
+- Wrong topic occasionally reported by the Monitoring API ([#104])
+
+[#103]: https://github.com/maiko-rs/maiko/pull/103
+[#104]: https://github.com/maiko-rs/maiko/pull/104
+
+---
+
 # [0.3.0](https://github.com/maiko-rs/maiko/compare/v0.2.6...v0.3.0) (March 1st, 2026)
 
 **Breaking changes** - API cleanup guided by the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/).
