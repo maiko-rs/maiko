@@ -1,7 +1,19 @@
+//! Benchmarks subscriber lookup strategies for fictional broker layouts.
+//!
+//! This compares a linear `Vec<Subscriber<...>>` scan against a topic-indexed
+//! `HashMap` layout using `fetch_subscribers` lookups based on
+//! `T::from_event(e.event())`.
+//!
+//! The benchmark is intended to estimate when topic indexing outperforms full
+//! scans as subscriber counts grow. It measures lookup cost only, not runtime
+//! send/backpressure behavior or index maintenance overhead.
+//!
+//! Run it `cargo bench -p maiko --bench broker_subscriber_lookup`.
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use maiko::{ActorId, Envelope, Event, Topic};
 use std::hash::Hash;
 use std::hint::black_box;
+
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
@@ -157,6 +169,7 @@ fn create_subscription(subscriber_index: usize) -> Subscription<BenchTopic> {
     Subscription::Topics(topics)
 }
 
+#[allow(clippy::type_complexity)] // Not important for the bench.
 fn build_fictional_brokers(
     subscriber_count: usize,
 ) -> (
