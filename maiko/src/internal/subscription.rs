@@ -13,13 +13,3 @@ pub(crate) enum Subscription<T: Eq + Hash> {
     /// Subscribe to no topics (e.g., pure event producers)
     None,
 }
-
-impl<T: Eq + Hash> Subscription<T> {
-    pub fn contains(&self, topic: &T) -> bool {
-        match self {
-            Subscription::All => true,
-            Subscription::Topics(topics) => topics.contains(topic),
-            Subscription::None => false,
-        }
-    }
-}
