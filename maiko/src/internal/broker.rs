@@ -1,5 +1,10 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
+use super::Subscriber;
+use crate::{
+    ActorId, Envelope, Error, Event, OverflowPolicy, Result, Topic,
+    internal::{Command, CommandSender, Subscription},
+};
 use futures_util::{FutureExt, StreamExt, future::join_all, stream::SelectAll};
 use tokio::{
     select,
@@ -9,12 +14,7 @@ use tokio::{
     },
 };
 use tokio_stream::wrappers::ReceiverStream;
-
-use super::Subscriber;
-use crate::{
-    ActorId, Envelope, Error, Event, OverflowPolicy, Result, Topic,
-    internal::{Command, CommandSender},
-};
+use tracing::warn;
 
 #[cfg(feature = "monitoring")]
 use crate::monitoring::{MonitoringEvent, MonitoringSink};
@@ -23,7 +23,14 @@ type Payload<E> = Arc<Envelope<E>>;
 
 pub struct Broker<E: Event, T: Topic<E>> {
     senders: SelectAll<ReceiverStream<Payload<E>>>,
-    subscribers: Vec<Subscriber<E, T>>,
+
+    /// Canonical subscriber registry keyed by [`ActorId`].
+    subscribers: HashMap<ActorId, Subscriber<E, T>>,
+    /// Index of explicit topic subscriptions ([`Subscription::Topics`]).
+    subscribers_by_topic: HashMap<T, Vec<ActorId>>,
+    /// [`ActorId`]s subscribed to all topics ([`Subscription::All`]).
+    subscribers_for_all: Vec<ActorId>,
+
     command_tx: CommandSender,
     command_rx: broadcast::Receiver<Command>,
 
@@ -38,7 +45,9 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
     ) -> Broker<E, T> {
         Broker {
             senders: SelectAll::new(),
-            subscribers: Vec::new(),
+            subscribers: HashMap::new(),
+            subscribers_by_topic: HashMap::new(),
+            subscribers_for_all: Vec::new(),
             command_rx: command_tx.as_ref().subscribe(),
             command_tx,
             #[cfg(feature = "monitoring")]
@@ -47,14 +56,29 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
     }
 
     pub(crate) fn add_subscriber(&mut self, subscriber: Subscriber<E, T>) -> Result {
-        if self.subscribers.contains(&subscriber) {
+        if self.subscribers.contains_key(&subscriber.actor_id) {
             return Err(Error::DuplicateActorName(subscriber.actor_id.clone()));
         }
 
         #[cfg(feature = "monitoring")]
         self.record_actor_registered(&subscriber.actor_id);
 
-        self.subscribers.push(subscriber);
+        let actor_id = subscriber.actor_id.clone();
+
+        match &subscriber.topics {
+            Subscription::All => self.subscribers_for_all.push(actor_id.clone()),
+            Subscription::Topics(topics) => {
+                for topic in topics {
+                    self.subscribers_by_topic
+                        .entry(topic.clone())
+                        .or_default()
+                        .push(actor_id.clone());
+                }
+            }
+            Subscription::None => {}
+        }
+
+        self.subscribers.insert(actor_id, subscriber);
 
         Ok(())
     }
@@ -63,7 +87,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         self.senders.push(ReceiverStream::new(receiver));
     }
 
-    async fn send_event(&mut self, e: &Arc<Envelope<E>>) -> Result {
+    async fn send_event(&self, e: &Arc<Envelope<E>>) -> Result {
         let topic = T::from_event(e.event());
         let mut blocked = None;
 
@@ -78,13 +102,26 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
             (active, t)
         };
 
-        for subscriber in self
-            .subscribers
-            .iter()
-            .filter(|s| s.topics.contains(&topic))
+        let subscribers = self
+            .subscribers_by_topic
+            .get(&topic)
+            .into_iter()
+            .flatten()
+            .chain(self.subscribers_for_all.iter())
+            .filter_map(|actor_id| {
+                let subscriber = self.subscribers.get(actor_id);
+                if subscriber.is_none() {
+                    // Generally, this must not happen.
+                    // If it does, the indexing behaviour is flawed.
+                    debug_assert!(subscriber.is_some(), "Indexing is flawed. Actor id {actor_id} is indexed, but there is no corresponding subscriber");
+                    warn!("Actor id {actor_id} is indexed, but there is no corresponding subscriber");
+                }
+                subscriber
+            })
             .filter(|s| !s.is_closed())
-            .filter(|s| s.actor_id != *e.meta().actor_id())
-        {
+            .filter(|s| s.actor_id != *e.meta().actor_id());
+
+        for subscriber in subscribers {
             match subscriber.sender.try_send(e.clone()) {
                 Ok(_) => {
                     #[cfg(feature = "monitoring")]
@@ -163,7 +200,29 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
     }
 
     fn remove_subscriber(&mut self, actor_id: ActorId) {
-        self.subscribers.retain(|s| s.actor_id != actor_id);
+        let Some(subscriber) = self.subscribers.remove(&actor_id) else {
+            return;
+        };
+
+        match subscriber.topics {
+            Subscription::All => {
+                self.subscribers_for_all.retain(|id| id != &actor_id);
+            }
+            Subscription::Topics(topics) => {
+                for topic in topics {
+                    let mut should_remove_topic = false;
+                    if let Some(actor_ids) = self.subscribers_by_topic.get_mut(&topic) {
+                        actor_ids.retain(|id| id != &actor_id);
+                        should_remove_topic = actor_ids.is_empty();
+                    }
+
+                    if should_remove_topic {
+                        self.subscribers_by_topic.remove(&topic);
+                    }
+                }
+            }
+            Subscription::None => {}
+        }
     }
 
     async fn shutdown(&mut self) {
@@ -186,7 +245,7 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
 
     pub fn is_empty(&self) -> bool {
         self.subscribers
-            .iter()
+            .values()
             .all(|s| s.is_closed() || s.sender.capacity() == s.sender.max_capacity())
     }
 }
@@ -292,18 +351,56 @@ mod tests {
             monitoring,
         );
         broker.add_sender(rx);
-        let actor_id = ActorId::new("subscriber1");
-        let subscriber = super::Subscriber::new(
-            actor_id.clone(),
+        let actor_id_topic = ActorId::new("subscriber-topic");
+        let topic_subscriber = super::Subscriber::new(
+            actor_id_topic.clone(),
             Subscription::Topics(HashSet::from([TestTopic::A])),
             tx.clone(),
         );
-        assert!(broker.add_subscriber(subscriber).is_ok());
+        assert!(broker.add_subscriber(topic_subscriber).is_ok());
+        assert_eq!(broker.subscribers.len(), 1);
+        assert_eq!(
+            broker.subscribers_by_topic.get(&TestTopic::A),
+            Some(&vec![actor_id_topic.clone()])
+        );
+        assert!(!broker.subscribers_by_topic.contains_key(&TestTopic::B));
+        assert!(broker.subscribers_for_all.is_empty());
+
+        let actor_id_all = ActorId::new("subscriber-all");
+        let all_subscriber =
+            super::Subscriber::new(actor_id_all.clone(), Subscription::All, tx.clone());
+        assert!(broker.add_subscriber(all_subscriber).is_ok());
+        assert_eq!(broker.subscribers.len(), 2);
+        assert_eq!(broker.subscribers_for_all, vec![actor_id_all.clone()]);
+
+        let actor_id_none = ActorId::new("subscriber-none");
+        let none_subscriber =
+            super::Subscriber::new(actor_id_none.clone(), Subscription::None, tx.clone());
+        assert!(broker.add_subscriber(none_subscriber).is_ok());
+        assert_eq!(broker.subscribers.len(), 3);
+        assert_eq!(
+            broker.subscribers_by_topic.get(&TestTopic::A),
+            Some(&vec![actor_id_topic.clone()])
+        );
+        assert_eq!(broker.subscribers_for_all, vec![actor_id_all.clone()]);
+
         let duplicate_subscriber = super::Subscriber::new(
-            actor_id,
+            actor_id_topic.clone(),
             Subscription::Topics(HashSet::from([TestTopic::B])),
             tx.clone(),
         );
         assert!(broker.add_subscriber(duplicate_subscriber).is_err());
+
+        broker.remove_subscriber(actor_id_all.clone());
+        assert!(broker.subscribers_for_all.is_empty());
+        assert!(!broker.subscribers.contains_key(&actor_id_all));
+
+        broker.remove_subscriber(actor_id_topic.clone());
+        assert!(!broker.subscribers_by_topic.contains_key(&TestTopic::A));
+        assert!(!broker.subscribers.contains_key(&actor_id_topic));
+
+        broker.remove_subscriber(actor_id_none.clone());
+        assert!(!broker.subscribers.contains_key(&actor_id_none));
+        assert!(broker.subscribers.is_empty());
     }
 }

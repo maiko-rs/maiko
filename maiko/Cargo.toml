@@ -38,6 +38,7 @@ tracing = "0.1"
 uuid = { version = "1.20", features = ["v4"] }
 
 [dev-dependencies]
+criterion = "0.8.2"
 getrandom = "0.4"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
 
@@ -63,3 +64,8 @@ required-features = ["default", "test-harness"]
 
 [[example]]
 name = "backpressure"
+
+[[bench]]
+name = "broker_subscriber_lookup"
+harness = false
+path = "benches/broker_subscriber_lookup.rs"
