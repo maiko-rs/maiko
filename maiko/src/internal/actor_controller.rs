@@ -238,7 +238,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_monitoring_uses_event_topic_for_stage2_try_recv() -> anyhow::Result<()> {
+    async fn test_monitoring_uses_event_topic_for_stage2_try_recv() -> crate::Result<()> {
         let mut sup = Supervisor::<TestEvent, TestTopic>::default();
         let receiver = sup
             .build_actor("receiver", |_| SlowFirstEventActor::default())
