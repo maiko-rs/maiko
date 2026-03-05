@@ -40,7 +40,7 @@
 //!
 //! # Note
 //!
-//! Spy and query types use `Rc` internally and are `!Send`. This is intentional —
+//! Spy and query types use `Rc` internally and are `!Send`. This is intentional:
 //! they are designed for single-threaded test contexts only.
 //!
 //! # Warning

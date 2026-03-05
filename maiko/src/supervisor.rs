@@ -37,9 +37,9 @@ use crate::monitoring::MonitorRegistry;
 ///
 /// - [`start()`](Self::start) spawns the broker loop and returns immediately (non-blocking).
 /// - [`send(event)`](Self::send) emits events into the broker.
-/// - [`run()`](Self::run) combines `start()` and `join()` — consumes the supervisor.
-/// - [`join()`](Self::join) awaits all actor tasks to finish — consumes the supervisor.
-/// - [`stop()`](Self::stop) graceful shutdown — consumes the supervisor.
+/// - [`run()`](Self::run) combines `start()` and `join()`. Consumes the supervisor.
+/// - [`join()`](Self::join) awaits all actor tasks to finish. Consumes the supervisor.
+/// - [`stop()`](Self::stop) graceful shutdown. Consumes the supervisor.
 ///
 /// The terminal methods (`run`, `join`, `stop`) take ownership of the supervisor,
 /// preventing use-after-shutdown at compile time.

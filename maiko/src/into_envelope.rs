@@ -3,7 +3,7 @@ use crate::{ActorId, Envelope, Event, EventId};
 /// Intermediate type used to pass events to [`Context::send`](crate::Context::send)
 /// and [`Supervisor::send`](crate::Supervisor::send).
 ///
-/// You don't interact with this type directly — any event type `E`
+/// You don't interact with this type directly; any event type `E`
 /// converts into it automatically via `From<E>`:
 ///
 /// ```rust,ignore
@@ -26,7 +26,7 @@ impl<E> IntoEnvelope<E> {
     /// # Errors
     ///
     /// Returns [`Error::EnvelopeBuildError`] if neither a pre-built envelope
-    /// nor an event + actor ID were provided.
+    /// nor an event and actor ID were provided.
     pub(crate) fn build(self) -> Envelope<E> {
         let mut envelope = if let Some(envelope) = self.envelope {
             envelope

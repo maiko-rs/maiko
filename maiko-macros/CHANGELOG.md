@@ -1,3 +1,9 @@
+# [0.3.1](https://github.com/maiko-rs/maiko/compare/v0.3.0...v0.3.1) (March 5th, 2026)
+
+No changes. Version bumped to be aligned with the main library.
+
+---
+
 # [0.3.0](https://github.com/maiko-rs/maiko/compare/v0.2.6...v0.3.0) (March 1st, 2026)
 
 No changes. Version bumped to be aligned with the main library.

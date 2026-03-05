@@ -67,7 +67,7 @@ pub trait Actor: Send + 'static {
     /// # Errors
     ///
     /// Return `Ok(())` when processing succeeds. Return an error to signal
-    /// failure — this triggers [`on_error`](Self::on_error), which decides
+    /// failure, this triggers [`on_error`](Self::on_error), which decides
     /// whether the actor stops or continues.
     fn handle_event(
         &mut self,

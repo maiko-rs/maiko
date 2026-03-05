@@ -156,7 +156,7 @@ Explicit. Visible. Your choice. Not a blessed API that muddles the model.
 
 Maiko is designed for correctness and simplicity first. That said:
 
-- **Event routing**: O(N) over subscribers, filtered by topic. Fast for realistic actor counts (tens to low hundreds).
+- **Event routing**: Topic-indexed lookup (HashMap), so delivery scales with subscribers per topic, not total actors.
 - **Memory**: Events are `Arc<Envelope<E>>` - zero-copy fan-out to multiple subscribers.
 - **Overhead**: One `mpsc` channel per actor, one broker task doing the routing.
 
