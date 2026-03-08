@@ -1,18 +1,19 @@
-use std::sync::Arc;
-
-use tokio::{
-    select,
-    sync::{
-        Mutex, Notify, broadcast,
-        mpsc::{self, Receiver, Sender, channel},
-    },
-    task::JoinSet,
-};
-
 use crate::{
     Actor, ActorBuilder, ActorConfig, ActorId, Context, DefaultTopic, Envelope, Error, Event,
     IntoEnvelope, Label, Result, Subscribe, SupervisorConfig, Topic,
-    internal::{ActorController, Broker, Command, CommandSender, Subscriber, Subscription},
+    internal::{
+        ActorController, Broker, Command, CommandSender, Subscriber, Subscription, gated_send,
+    },
+};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::{
+    select,
+    sync::{
+        Notify, broadcast,
+        mpsc::{self, Receiver, Sender, channel},
+    },
+    task::{JoinHandle, JoinSet},
 };
 
 #[cfg(feature = "monitoring")]
@@ -57,6 +58,8 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
     cmd_tx: CommandSender,
     cmd_rx: broadcast::Receiver<Command>,
 
+    is_stopping: Arc<AtomicBool>,
+
     #[cfg(feature = "monitoring")]
     monitoring: MonitorRegistry<E, T>,
 }
@@ -97,6 +100,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             registrations: Vec::new(),
             cmd_tx,
             cmd_rx,
+            is_stopping: Arc::new(AtomicBool::new(false)),
 
             #[cfg(feature = "monitoring")]
             monitoring,
@@ -229,7 +233,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         name: &str,
         sender: Sender<Arc<Envelope<E>>>,
     ) -> Context<E> {
-        Context::<E>::new(ActorId::new(name), sender, self.cmd_tx.clone())
+        Context::<E>::new(ActorId::new(name), sender, self.cmd_tx.clone(), self.is_stopping.clone())
     }
 
     /// Emit an event into the broker from the supervisor.
@@ -242,8 +246,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             .into()
             .with_actor_id(self.supervisor_id.clone())
             .build();
-        self.sender.send(envelope.into()).await?;
-        Ok(())
+        gated_send(&self.is_stopping, &self.sender, envelope.into()).await
     }
 
     /// Convenience method to start and then await completion of all tasks.
@@ -323,6 +326,8 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// Returns [`Error::Internal`] if an actor task panics during shutdown.
     pub async fn stop(mut self) -> Result {
+        self.is_stopping.store(true, Ordering::Release);
+
         use tokio::time::*;
 
         let tasks = &mut self.tasks;
