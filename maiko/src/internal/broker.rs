@@ -5,7 +5,7 @@ use crate::{
     ActorId, Envelope, Error, Event, OverflowPolicy, Result, Topic,
     internal::{Command, CommandSender, Subscription},
 };
-use futures_util::{FutureExt, StreamExt, future::join_all, stream::SelectAll};
+use futures_util::{StreamExt, future::join_all, stream::SelectAll};
 use tokio::{
     select,
     sync::{
@@ -225,28 +225,31 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         }
     }
 
-    async fn shutdown(&mut self) {
-        use tokio::time::*;
-
-        // Drain any events still buffered in sender streams (best effort)
-        while let Some(event) = self.senders.next().now_or_never().flatten() {
-            let _ = self.send_event(&event).await;
-        }
-
-        tokio::task::yield_now().await;
-
-        // Wait the inner channels to be consumed by the actors
-        let start = Instant::now();
-        let timeout = Duration::from_millis(10);
-        while !self.is_empty() && start.elapsed() < timeout {
-            sleep(Duration::from_micros(100)).await;
+    /// Stop accepting new Stage-1 messages while preserving buffered items.
+    ///
+    /// Stage naming follows crate-level [Flow Control](crate#flow-control).
+    fn close_senders(&mut self) {
+        for sender in self.senders.iter_mut() {
+            sender.close();
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.subscribers
-            .values()
-            .all(|s| s.is_closed() || s.sender.capacity() == s.sender.max_capacity())
+    /// Gracefully stop broker ingress and drain all Stage-1 channels.
+    ///
+    /// Stage naming follows the crate-level
+    /// [Flow Control](crate#flow-control) documentation.
+    ///
+    /// Shutdown first closes all Stage-1 receivers so no new messages can be
+    /// enqueued. It then awaits `senders.next()` until `None`, which indicates
+    /// every Stage-1 channel is closed and fully drained. Each drained event is
+    /// still dispatched to subscribers to preserve in-flight delivery.
+    async fn shutdown(&mut self) {
+        self.close_senders();
+
+        // Drain all Stage-1 channels until each receiver is closed and empty.
+        while let Some(event) = self.senders.next().await {
+            let _ = self.send_event(&event).await;
+        }
     }
 }
 
