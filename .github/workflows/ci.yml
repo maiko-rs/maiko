@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, ready_for_review]
   workflow_dispatch:
 
 env:
@@ -9,6 +10,7 @@ env:
 
 jobs:
   ci:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,8 +24,16 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v2
 
+      - name: Install LLVM/libclang (for cargo-spellcheck)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends llvm-dev libclang-dev clang
+
       - name: Install cargo-spellcheck
-        run: cargo install cargo-spellcheck
+        run: |
+          export LLVM_CONFIG_PATH="$(command -v llvm-config)"
+          export LIBCLANG_PATH="$(llvm-config --libdir)"
+          cargo install --locked cargo-spellcheck
 
       - name: Run CI
         run: just ci
