@@ -55,3 +55,13 @@ clean:
 # Watch and run tests on changes (requires bacon)
 watch:
     bacon test
+
+# Check if `uv` is installed. See installation instructions https://docs.astral.sh/uv/getting-started/installation/
+check-uv:
+    @if ! command -v uv >/dev/null 2>&1; then echo "Requires \`uv\`. See installation instructions https://docs.astral.sh/uv/getting-started/installation/"; exit 1; fi
+
+# Run Actor->Broker->Actor transport benchmark and print throughput matrix.
+# Print throughput matrix (messages/sec) from Criterion estimates.
+bench-a2a: check-uv
+    cargo bench -p maiko --bench actor_to_actor_transport_maiko -- --noplot
+    uv run --project scripts scripts/bench_a2a_matrix.py
