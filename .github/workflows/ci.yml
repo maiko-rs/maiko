@@ -24,16 +24,11 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v2
 
-      - name: Install LLVM/libclang (for cargo-spellcheck)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends llvm-dev libclang-dev clang
-
       - name: Install cargo-spellcheck
-        run: |
-          export LLVM_CONFIG_PATH="$(command -v llvm-config)"
-          export LIBCLANG_PATH="$(llvm-config --libdir)"
-          cargo install --locked cargo-spellcheck
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-spellcheck
+          fallback: none
 
       - name: Run CI
         run: just ci
