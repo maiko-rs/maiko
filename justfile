@@ -5,6 +5,7 @@ default: check
 check:
     cargo fmt --all -- --check
     cargo clippy --workspace --all-targets --all-features -- -D warnings
+    taplo fmt --check
 
 # Full CI: format, lint, test, spell, build examples
 ci: check test spell build
@@ -12,6 +13,7 @@ ci: check test spell build
 # Format code
 fmt:
     cargo fmt --all
+    taplo fmt
 
 # Run all tests
 test:

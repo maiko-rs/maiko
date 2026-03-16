@@ -1,10 +1,6 @@
 [workspace]
+members  = ["maiko", "maiko-macros"]
 resolver = "2"
-members = [
-  "maiko",
-  "maiko-macros",
-]
 
-[workspace.metadata.spellcheck]
-config = "spellcheck.toml"
-
+  [workspace.metadata.spellcheck]
+  config = "spellcheck.toml"

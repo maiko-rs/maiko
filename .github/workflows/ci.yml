@@ -30,5 +30,10 @@ jobs:
           tool: cargo-spellcheck
           fallback: none
 
+      - name: Install taplo
+        uses: taiki-e/install-action@v2
+        with:
+          tool: taplo-cli
+
       - name: Run CI
         run: just ci
