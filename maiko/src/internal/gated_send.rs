@@ -1,7 +1,7 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
 
 use crate::{Envelope, Error, Result};
 
@@ -13,29 +13,23 @@ use crate::{Envelope, Error, Result};
 /// 1. sender checks `stop_gate == false`,
 /// 2. sender awaits capacity in `send(...).await`,
 /// 3. shutdown flips `stop_gate` while sender is suspended,
-/// 4. sender still enqueues after shutdown began.
-///
-/// [`Ordering::Acquire`] loads are used for `stop_gate` so they synchronize with the
-/// [`Ordering::Release`] store performed by shutdown ([`crate::Supervisor::stop`]). When a sender
-/// observes `true`, it also observes writes that happened-before shutdown
-/// published that stop signal. `Relaxed` would keep atomicity of the flag, but
-/// would not provide that visibility/synchronization guarantee.
+/// 4. sender still queues after shutdown began.
 ///
 /// The helper uses `reserve().await` to get capacity, re-checks `stop_gate`,
 /// then calls `Permit::send` (non-async). That removes the check/await window
 /// after the second gate check.
 pub(crate) async fn gated_send<E>(
-    stop_gate: &Arc<AtomicBool>,
+    stop_gate: &CancellationToken,
     sender: &Sender<Arc<Envelope<E>>>,
     envelope: Arc<Envelope<E>>,
 ) -> Result {
-    if stop_gate.load(Ordering::Acquire) {
+    if stop_gate.is_cancelled() {
         return Err(Error::MailboxClosed);
     }
 
     let permit = sender.reserve().await.map_err(|_| Error::MailboxClosed)?;
 
-    if stop_gate.load(Ordering::Acquire) {
+    if stop_gate.is_cancelled() {
         drop(permit);
         return Err(Error::MailboxClosed);
     }
@@ -47,9 +41,9 @@ pub(crate) async fn gated_send<E>(
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, Ordering};
 
     use tokio::sync::mpsc::{self, error::TryRecvError};
+    use tokio_util::sync::CancellationToken;
 
     use crate::{ActorId, Envelope, Error, Event};
 
@@ -65,7 +59,8 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn gated_send_rejects_when_gate_is_already_set() {
-        let stop_gate = Arc::new(AtomicBool::new(true));
+        let stop_gate = CancellationToken::new();
+        stop_gate.cancel();
         let (tx, mut rx) = mpsc::channel(1);
 
         let res = gated_send(&stop_gate, &tx, test_envelope(1)).await;
@@ -75,7 +70,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn gated_send_rechecks_gate_after_waiting_for_capacity() {
-        let stop_gate = Arc::new(AtomicBool::new(false));
+        let stop_gate = CancellationToken::new();
         let (tx, mut rx) = mpsc::channel(1);
 
         gated_send(&stop_gate, &tx, test_envelope(1))
@@ -93,7 +88,7 @@ mod tests {
         tokio::task::yield_now().await;
 
         // Flip stop while sender is blocked on capacity.
-        stop_gate.store(true, Ordering::Release);
+        stop_gate.cancel();
 
         // Free one slot; without the second check this would enqueue event #2.
         let drained = rx.recv().await.expect("expected first queued event");

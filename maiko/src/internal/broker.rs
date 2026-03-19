@@ -225,30 +225,29 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         }
     }
 
-    /// Stop accepting new Stage-1 messages while preserving buffered items.
-    ///
-    /// Stage naming follows crate-level [Flow Control](crate#flow-control).
-    fn close_senders(&mut self) {
-        for sender in self.senders.iter_mut() {
-            sender.close();
-        }
-    }
-
     /// Gracefully stop broker ingress and drain all Stage-1 channels.
     ///
     /// Stage naming follows the crate-level
     /// [Flow Control](crate#flow-control) documentation.
     ///
-    /// Shutdown first closes all Stage-1 receivers so no new messages can be
-    /// enqueued. It then awaits `senders.next()` until `None`, which indicates
-    /// every Stage-1 channel is closed and fully drained. Each drained event is
-    /// still dispatched to subscribers to preserve in-flight delivery.
+    /// Shutdown first moves out all Stage-1 receivers and closes them so no
+    /// new messages can be queued. It then drains each receiver directly
+    /// until `None`, ensuring all buffered items are preserved and delivered
+    /// without relying on `SelectAll` wake-ups after the receivers were closed.
     async fn shutdown(&mut self) {
-        self.close_senders();
+        let mut senders = std::mem::take(&mut self.senders);
+        for sender in senders.iter_mut() {
+            sender.close();
+        }
 
-        // Drain all Stage-1 channels until each receiver is closed and empty.
-        while let Some(event) = self.senders.next().await {
-            let _ = self.send_event(&event).await;
+        // `SelectAll` only polls inner streams when they produce notifications.
+        // Once we mutate the receivers directly via `close()`, it may never be
+        // woken again to observe that all streams have become terminated.
+        // Drain each receiver directly so shutdown can reach `None` reliably.
+        for mut sender in senders {
+            while let Some(event) = sender.next().await {
+                let _ = self.send_event(&event).await;
+            }
         }
     }
 }

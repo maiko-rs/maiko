@@ -6,7 +6,6 @@ use crate::{
     },
 };
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::{
     select,
     sync::{
@@ -15,6 +14,7 @@ use tokio::{
     },
     task::{JoinHandle, JoinSet},
 };
+use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "monitoring")]
 use crate::monitoring::MonitorRegistry;
@@ -79,7 +79,7 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
     cmd_tx: CommandSender,
     cmd_rx: broadcast::Receiver<Command>,
 
-    is_stopping: Arc<AtomicBool>,
+    stop_token: CancellationToken,
 
     #[cfg(feature = "monitoring")]
     monitoring: MonitorRegistry<E, T>,
@@ -121,7 +121,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             registrations: Vec::new(),
             cmd_tx,
             cmd_rx,
-            is_stopping: Arc::new(AtomicBool::new(false)),
+            stop_token: CancellationToken::new(),
 
             #[cfg(feature = "monitoring")]
             monitoring,
@@ -258,7 +258,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             ActorId::new(name),
             sender,
             self.cmd_tx.clone(),
-            self.is_stopping.clone(),
+            self.stop_token.clone(),
         )
     }
 
@@ -272,7 +272,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             .into()
             .with_actor_id(self.supervisor_id.clone())
             .build();
-        gated_send(&self.is_stopping, &self.sender, envelope.into()).await
+        gated_send(&self.stop_token, &self.sender, envelope.into()).await
     }
 
     /// Convenience method to start and then await completion of all tasks.
@@ -393,7 +393,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// Returns [`Error::Internal`] if an actor task panics during shutdown.
     pub async fn stop(mut self) -> Result {
-        self.is_stopping.store(true, Ordering::Release);
+        self.stop_token.cancel();
 
         let mut first_err: Option<Error> = None;
 

@@ -1,6 +1,6 @@
-use std::sync::atomic::AtomicBool;
 use std::{fmt, sync::Arc};
 use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     ActorId, Envelope, EventId, IntoEnvelope, Result,
@@ -23,7 +23,7 @@ pub struct Context<E> {
     actor_id: ActorId,
     sender: Sender<Arc<Envelope<E>>>,
     cmd_tx: CommandSender,
-    is_stopping: Arc<AtomicBool>,
+    stop_token: CancellationToken,
 }
 
 impl<E> Context<E> {
@@ -31,13 +31,13 @@ impl<E> Context<E> {
         actor_id: ActorId,
         sender: Sender<Arc<Envelope<E>>>,
         cmd_tx: CommandSender,
-        is_stopping: Arc<AtomicBool>,
+        stop_token: CancellationToken,
     ) -> Self {
         Self {
             actor_id,
             sender,
             cmd_tx,
-            is_stopping,
+            stop_token,
         }
     }
 
@@ -78,7 +78,7 @@ impl<E> Context<E> {
 
     #[inline]
     async fn send_envelope<T: Into<Envelope<E>>>(&self, envelope: T) -> Result {
-        gated_send(&self.is_stopping, &self.sender, Arc::new(envelope.into())).await
+        gated_send(&self.stop_token, &self.sender, Arc::new(envelope.into())).await
     }
 
     /// Stop this actor.
