@@ -1,10 +1,10 @@
 use std::{fmt, sync::Arc};
-
 use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     ActorId, Envelope, EventId, IntoEnvelope, Result,
-    internal::{Command, CommandSender},
+    internal::{Command, CommandSender, gated_send},
 };
 
 /// Runtime-provided context for an actor to interact with the system.
@@ -23,6 +23,7 @@ pub struct Context<E> {
     actor_id: ActorId,
     sender: Sender<Arc<Envelope<E>>>,
     cmd_tx: CommandSender,
+    stop_token: CancellationToken,
 }
 
 impl<E> Context<E> {
@@ -30,11 +31,13 @@ impl<E> Context<E> {
         actor_id: ActorId,
         sender: Sender<Arc<Envelope<E>>>,
         cmd_tx: CommandSender,
+        stop_token: CancellationToken,
     ) -> Self {
         Self {
             actor_id,
             sender,
             cmd_tx,
+            stop_token,
         }
     }
 
@@ -75,8 +78,7 @@ impl<E> Context<E> {
 
     #[inline]
     async fn send_envelope<T: Into<Envelope<E>>>(&self, envelope: T) -> Result {
-        self.sender.send(Arc::new(envelope.into())).await?;
-        Ok(())
+        gated_send(&self.stop_token, &self.sender, Arc::new(envelope.into())).await
     }
 
     /// Stop this actor.

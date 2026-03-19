@@ -1,22 +1,44 @@
-use std::sync::Arc;
-
-use tokio::{
-    select,
-    sync::{
-        Mutex, Notify, broadcast,
-        mpsc::{self, Receiver, Sender, channel},
-    },
-    task::JoinSet,
-};
-
 use crate::{
     Actor, ActorBuilder, ActorConfig, ActorId, Context, DefaultTopic, Envelope, Error, Event,
     IntoEnvelope, Label, Result, Subscribe, SupervisorConfig, Topic,
-    internal::{ActorController, Broker, Command, CommandSender, Subscriber, Subscription},
+    internal::{
+        ActorController, Broker, Command, CommandSender, Subscriber, Subscription, gated_send,
+    },
 };
+use std::sync::Arc;
+use tokio::{
+    select,
+    sync::{
+        Notify, broadcast,
+        mpsc::{self, Receiver, Sender, channel},
+    },
+    task::{JoinHandle, JoinSet},
+};
+use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "monitoring")]
 use crate::monitoring::MonitorRegistry;
+
+/// Internal broker lifecycle owned by [`Supervisor`].
+///
+/// Transition model:
+/// - `Broker` -> `Task` in `start()`
+/// - `Task` -> `Done` when the broker task is awaited
+/// - `Done` is terminal for this supervisor instance.
+enum BrokerState<E: Event, T: Topic<E>> {
+    /// Broker is still local to the supervisor (pre-start registration phase).
+    Broker(Broker<E, T>),
+    /// Broker is running in its spawned task (post-start runtime phase).
+    Task(JoinHandle<Result>),
+    /// Broker task has completed or the broker was moved out and consumed.
+    Done,
+}
+
+impl<E: Event, T: Topic<E>> BrokerState<E, T> {
+    pub fn is_running(&self) -> bool {
+        matches!(self, BrokerState::Task(_))
+    }
+}
 
 /// Coordinates actors and the broker, and owns the top-level runtime.
 ///
@@ -47,7 +69,7 @@ use crate::monitoring::MonitorRegistry;
 /// See also: [`Actor`], [`Context`], [`Topic`].
 pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
     config: Arc<SupervisorConfig>,
-    broker: Arc<Mutex<Broker<E, T>>>,
+    broker_state: BrokerState<E, T>,
     pub(crate) sender: Sender<Arc<Envelope<E>>>,
     tasks: JoinSet<Result>,
     start_notifier: Arc<Notify>,
@@ -56,6 +78,8 @@ pub struct Supervisor<E: Event, T: Topic<E> = DefaultTopic> {
 
     cmd_tx: CommandSender,
     cmd_rx: broadcast::Receiver<Command>,
+
+    stop_token: CancellationToken,
 
     #[cfg(feature = "monitoring")]
     monitoring: MonitorRegistry<E, T>,
@@ -88,7 +112,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         broker.add_sender(rx);
 
         Self {
-            broker: Arc::new(Mutex::new(broker)),
+            broker_state: BrokerState::Broker(broker),
             config,
             sender: tx,
             tasks: JoinSet::new(),
@@ -97,6 +121,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             registrations: Vec::new(),
             cmd_tx,
             cmd_rx,
+            stop_token: CancellationToken::new(),
 
             #[cfg(feature = "monitoring")]
             monitoring,
@@ -187,10 +212,10 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     {
         let actor_id = ctx.actor_id().clone();
 
-        let mut broker = self
-            .broker
-            .try_lock()
-            .map_err(|_| Error::BrokerAlreadyStarted)?;
+        let broker = match &mut self.broker_state {
+            BrokerState::Broker(broker) => broker,
+            _ => return Err(Error::BrokerAlreadyStarted),
+        };
 
         let (tx, rx) = mpsc::channel::<Arc<Envelope<E>>>(config.channel_capacity());
 
@@ -229,7 +254,12 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
         name: &str,
         sender: Sender<Arc<Envelope<E>>>,
     ) -> Context<E> {
-        Context::<E>::new(ActorId::new(name), sender, self.cmd_tx.clone())
+        Context::<E>::new(
+            ActorId::new(name),
+            sender,
+            self.cmd_tx.clone(),
+            self.stop_token.clone(),
+        )
     }
 
     /// Emit an event into the broker from the supervisor.
@@ -242,8 +272,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             .into()
             .with_actor_id(self.supervisor_id.clone())
             .build();
-        self.sender.send(envelope.into()).await?;
-        Ok(())
+        gated_send(&self.stop_token, &self.sender, envelope.into()).await
     }
 
     /// Convenience method to start and then await completion of all tasks.
@@ -261,13 +290,21 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// # Errors
     ///
-    /// Currently infallible, but returns `Result` for forward compatibility.
+    /// Returns [`Error::BrokerAlreadyStarted`] if called more than once.
     pub async fn start(&mut self) -> Result {
-        let broker = self.broker.clone();
-        self.tasks
-            .spawn(async move { broker.lock().await.run().await });
-        self.start_notifier.notify_waiters();
-        Ok(())
+        let state = std::mem::replace(&mut self.broker_state, BrokerState::Done);
+        match state {
+            BrokerState::Broker(mut broker) => {
+                self.broker_state =
+                    BrokerState::Task(tokio::spawn(async move { broker.run().await }));
+                self.start_notifier.notify_waiters();
+                Ok(())
+            }
+            state => {
+                self.broker_state = state;
+                Err(Error::BrokerAlreadyStarted)
+            }
+        }
     }
 
     async fn join_next_task(tasks: &mut JoinSet<Result>) -> Option<Result> {
@@ -276,6 +313,26 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             Ok(Err(e)) => Err(e),
             _ => Ok(()),
         })
+    }
+
+    async fn join_broker_task(state: &mut BrokerState<E, T>) -> Option<Result> {
+        let res = match state {
+            BrokerState::Task(handle) => match handle.await {
+                Err(e) => Err(Error::internal(e)),
+                Ok(Err(e)) => Err(e),
+                _ => Ok(()),
+            },
+            _ => return None,
+        };
+
+        *state = BrokerState::Done;
+
+        Some(res)
+    }
+
+    #[inline]
+    fn broker_task_count(&self) -> usize {
+        usize::from(self.broker_state.is_running())
     }
 
     /// Waits until at least one of the actor tasks completes then
@@ -287,21 +344,34 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     /// Propagates any error returned by [`stop()`](Self::stop).
     pub async fn join(mut self) -> Result {
         let mut res = Ok(());
-        let tasks = &mut self.tasks;
         loop {
+            if self.tasks.is_empty() && !self.broker_state.is_running() {
+                break;
+            }
+
             select! {
                 maybe_cmd = self.cmd_rx.recv() => match maybe_cmd {
                     Ok(Command::StopRuntime) => break,
                     Err(err) => return Err(Error::internal(err)),
                     _ => {}
                 },
-                maybe_res = Self::join_next_task(tasks) => {
+                broker_res = Self::join_broker_task(&mut self.broker_state), if self.broker_state.is_running() => {
+                    match broker_res {
+                        Some(Err(e)) => {
+                            res = Err(e);
+                            break;
+                        }
+                        None => {}
+                        _ => {}
+                    }
+                },
+                maybe_res = Self::join_next_task(&mut self.tasks), if !self.tasks.is_empty() => {
                     match maybe_res {
                         Some(Err(e)) => {
                             res = Err(e);
                             break;
                         }
-                        None => break,
+                        None => {}
                         _ => {}
                     }
                 }
@@ -315,45 +385,43 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
     ///
     /// # Shutdown Process
     ///
-    /// 1. Waits for the broker to receive all pending events (up to 10 ms)
-    /// 2. Sends `StopBroker` command and waits for the broker to drain actor queues
-    /// 3. Sends `StopRuntime` command and waits for all actor tasks to complete
+    /// 1. Sends `StopBroker` and waits for broker shutdown
+    /// 2. Sends `StopRuntime`
+    /// 3. Waits for all actor tasks to complete
     ///
     /// # Errors
     ///
     /// Returns [`Error::Internal`] if an actor task panics during shutdown.
     pub async fn stop(mut self) -> Result {
-        use tokio::time::*;
-
-        let tasks = &mut self.tasks;
-        let start = Instant::now();
-        let timeout = Duration::from_millis(10);
-        let max = self.sender.max_capacity();
+        self.stop_token.cancel();
 
         let mut first_err: Option<Error> = None;
 
-        // 1. Wait for the main channel to drain
-        while start.elapsed() < timeout {
-            if self.sender.capacity() == max {
-                break;
+        // 1. Stop broker and wait for it to shutdown.
+        if self.broker_state.is_running() {
+            if let Err(e) = self.cmd_tx.send(Command::StopBroker) {
+                first_err.get_or_insert(e);
             }
-            sleep(Duration::from_micros(100)).await;
-        }
 
-        // 2. Wait for the broker to shutdown gracefully
-        match self.cmd_tx.send(Command::StopBroker) {
-            Ok(_) => {
-                let _ = self.broker.lock().await;
-            }
-            Err(e) => {
+            if let Some(Err(e)) = Self::join_broker_task(&mut self.broker_state).await {
                 first_err.get_or_insert(e);
             }
         }
 
-        // 3. Stop the actors
+        // If stop is called before start, actor tasks are still awaiting this signal.
+        //
+        // Without this:
+        //
+        // - if user calls stop() before start(),
+        // - actor tasks never wake,
+        // - StopRuntime alone won’t help because they haven’t entered their run loop yet,
+        // - joins can hang.
+        self.start_notifier.notify_waiters();
+
+        // 2. Stop the actors
         match self.cmd_tx.send(Command::StopRuntime) {
             Ok(_) => {
-                while let Some(res) = Self::join_next_task(tasks).await {
+                while let Some(res) = Self::join_next_task(&mut self.tasks).await {
                     if let Err(e) = res {
                         first_err.get_or_insert(e);
                     }
@@ -361,7 +429,7 @@ impl<E: Event, T: Topic<E>> Supervisor<E, T> {
             }
             Err(e) => {
                 first_err.get_or_insert(e);
-                tasks.abort_all();
+                self.tasks.abort_all();
             }
         }
 
@@ -396,7 +464,7 @@ impl<E: Event, T: Topic<E>> std::fmt::Debug for Supervisor<E, T> {
             .collect();
         f.debug_struct("Supervisor")
             .field("actors", &actors)
-            .field("tasks", &self.tasks.len())
+            .field("tasks", &(self.tasks.len() + self.broker_task_count()))
             .finish_non_exhaustive()
     }
 }

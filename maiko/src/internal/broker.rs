@@ -5,7 +5,7 @@ use crate::{
     ActorId, Envelope, Error, Event, OverflowPolicy, Result, Topic,
     internal::{Command, CommandSender, Subscription},
 };
-use futures_util::{FutureExt, StreamExt, future::join_all, stream::SelectAll};
+use futures_util::{StreamExt, future::join_all, stream::SelectAll};
 use tokio::{
     select,
     sync::{
@@ -225,28 +225,30 @@ impl<E: Event, T: Topic<E>> Broker<E, T> {
         }
     }
 
+    /// Gracefully stop broker ingress and drain all Stage-1 channels.
+    ///
+    /// Stage naming follows the crate-level
+    /// [Flow Control](crate#flow-control) documentation.
+    ///
+    /// Shutdown first moves out all Stage-1 receivers and closes them so no
+    /// new messages can be queued. It then drains each receiver directly
+    /// until `None`, ensuring all buffered items are preserved and delivered
+    /// without relying on `SelectAll` wake-ups after the receivers were closed.
     async fn shutdown(&mut self) {
-        use tokio::time::*;
-
-        // Drain any events still buffered in sender streams (best effort)
-        while let Some(event) = self.senders.next().now_or_never().flatten() {
-            let _ = self.send_event(&event).await;
+        let mut senders = std::mem::take(&mut self.senders);
+        for sender in senders.iter_mut() {
+            sender.close();
         }
 
-        tokio::task::yield_now().await;
-
-        // Wait the inner channels to be consumed by the actors
-        let start = Instant::now();
-        let timeout = Duration::from_millis(10);
-        while !self.is_empty() && start.elapsed() < timeout {
-            sleep(Duration::from_micros(100)).await;
+        // `SelectAll` only polls inner streams when they produce notifications.
+        // Once we mutate the receivers directly via `close()`, it may never be
+        // woken again to observe that all streams have become terminated.
+        // Drain each receiver directly so shutdown can reach `None` reliably.
+        for mut sender in senders {
+            while let Some(event) = sender.next().await {
+                let _ = self.send_event(&event).await;
+            }
         }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.subscribers
-            .values()
-            .all(|s| s.is_closed() || s.sender.capacity() == s.sender.max_capacity())
     }
 }
 
