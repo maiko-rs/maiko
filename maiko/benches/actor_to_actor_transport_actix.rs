@@ -6,6 +6,10 @@
 //!
 //! Throughput unit is messages/sec.
 //!
+//! Backpressure is implemented at the producer send site via
+//! `Addr::send(...).await`, with the consumer mailbox bounded by
+//! `ctx.set_mailbox_capacity(MAILBOX_CAPACITY)`.
+//!
 //! Run with:
 //! `cargo bench -p maiko --bench actor_to_actor_transport_actix -- --noplot`
 
@@ -14,6 +18,8 @@ use std::{hint::black_box, time::Duration};
 use actix::prelude::*;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use tokio::{sync::oneshot, time::Instant};
+
+const MAILBOX_CAPACITY: usize = 128;
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -36,15 +42,25 @@ impl Actor for Producer {
 }
 
 impl Handler<Start> for Producer {
-    type Result = ();
+    type Result = ResponseActFuture<Self, ()>;
 
-    fn handle(&mut self, _message: Start, ctx: &mut Self::Context) -> Self::Result {
-        while self.remaining > 0 {
-            self.consumer
-                .do_send(BenchMessage(self.payload_template.clone()));
-            self.remaining -= 1;
-        }
-        ctx.stop();
+    fn handle(&mut self, _message: Start, _ctx: &mut Self::Context) -> Self::Result {
+        let consumer = self.consumer.clone();
+        let remaining = self.remaining;
+        let payload_template = self.payload_template.clone();
+
+        Box::pin(
+            async move {
+                for _ in 0..remaining {
+                    consumer
+                        .send(BenchMessage(payload_template.clone()))
+                        .await
+                        .expect("consumer mailbox should stay available");
+                }
+            }
+            .into_actor(self)
+            .map(|_, _actor, ctx| ctx.stop()),
+        )
     }
 }
 
@@ -58,6 +74,10 @@ struct Consumer {
 
 impl Actor for Consumer {
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.set_mailbox_capacity(MAILBOX_CAPACITY);
+    }
 }
 
 impl Handler<BenchMessage> for Consumer {

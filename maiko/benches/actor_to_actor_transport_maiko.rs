@@ -6,6 +6,10 @@
 //!
 //! Throughput unit is messages/sec.
 //!
+//! Backpressure is implemented at the producer send site via
+//! `Context::send(...).await`, and at routing time via `OverflowPolicy::Block`
+//! for the payload topic.
+//!
 //! Run with:
 //! `cargo bench -p maiko --bench actor_to_actor_transport_maiko -- --noplot`
 use std::{hint::black_box, time::Duration};
@@ -137,7 +141,7 @@ async fn run_round(message_count: usize, payload_size: usize) -> Duration {
             target: message_count,
             done_tx: done_tx.take(),
         })
-        .topics(&[BenchTopic::Payload])
+        .topics([BenchTopic::Payload])
         .with_config(|cfg| cfg.with_max_events_per_tick(message_count))
         .build()
         .expect("consumer registration should succeed");

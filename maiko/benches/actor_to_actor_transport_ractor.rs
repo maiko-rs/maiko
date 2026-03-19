@@ -6,6 +6,9 @@
 //!
 //! Throughput unit is messages/sec.
 //!
+//! This benchmark does not implement an explicit await-based backpressure path;
+//! the producer currently pushes messages with `ActorRef::send_message(...)`.
+//!
 //! Run with:
 //! `cargo bench -p maiko --bench actor_to_actor_transport_ractor -- --noplot`
 

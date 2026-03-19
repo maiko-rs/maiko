@@ -1,5 +1,6 @@
 [package]
 authors       = ["David de Rosier <ddrcode@gmail.com>"]
+autobenches   = false
 categories    = ["asynchronous", "concurrency"]
 description   = "Lightweight event-driven actor runtime with topic-based pub/sub for Tokio"
 documentation = "https://docs.rs/maiko"
@@ -38,8 +39,10 @@ tracing      = "0.1"
 uuid         = { version = "1.20", features = ["v4"] }
 
 [dev-dependencies]
+actix              = "0.13"
 criterion          = "0.8.2"
 getrandom          = "0.4"
+ractor             = { version = "0.15", features = ["async-trait"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
 
 [[example]]
@@ -71,7 +74,16 @@ name    = "broker_subscriber_lookup"
 path    = "benches/broker_subscriber_lookup.rs"
 
 [[bench]]
-name = "actor_to_actor_transport_maiko"
 harness = false
-path = "benches/actor_to_actor_transport_maiko.rs"
+name    = "actor_to_actor_transport_maiko"
+path    = "benches/actor_to_actor_transport_maiko.rs"
 
+[[bench]]
+harness = false
+name    = "actor_to_actor_transport_actix"
+path    = "benches/actor_to_actor_transport_actix.rs"
+
+[[bench]]
+harness = false
+name    = "actor_to_actor_transport_ractor"
+path    = "benches/actor_to_actor_transport_ractor.rs"

@@ -11,7 +11,7 @@ MESSAGE_COUNTS = (1000, 10000, 100000)
 PAYLOAD_SIZES = (32, 256, 1024, 4096)
 PAYLOAD_HEADERS = ("32B", "256B", "1KiB", "4KiB")
 FRAMEWORKS = (
-    ("maiko", "actor_to_actor_transport"),
+    ("maiko", "actor_to_actor_transport_maiko"),
     ("actix", "actor_to_actor_transport_actix"),
     ("ractor", "actor_to_actor_transport_ractor"),
 )

@@ -65,3 +65,10 @@ check-uv:
 bench-a2a: check-uv
     cargo bench -p maiko --bench actor_to_actor_transport_maiko -- --noplot
     uv run --project scripts scripts/bench_a2a_matrix.py
+
+# Run all Actor->Actor transport benches, then compare throughput across frameworks.
+bench-a2a-compare: check-uv
+    cargo bench --profile bench -p maiko --bench actor_to_actor_transport_maiko -- --noplot
+    cargo bench --profile bench -p maiko --bench actor_to_actor_transport_actix -- --noplot
+    cargo bench --profile bench -p maiko --bench actor_to_actor_transport_ractor -- --noplot
+    uv run --project scripts scripts/bench_a2a_compare.py
