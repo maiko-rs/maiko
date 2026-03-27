@@ -163,6 +163,12 @@ impl<E: Event, T: Topic<E>> MonitorDispatcher<E, T> {
             EventHandled(envelope, topic, actor_id) => {
                 self.notify(|m| m.on_event_handled(&envelope, &topic, &actor_id));
             }
+            StepEnter(actor_id) => {
+                self.notify(|m| m.on_step_enter(&actor_id));
+            }
+            StepExit(step_action, actor_id) => {
+                self.notify(|m| m.on_step_exit(&step_action, &actor_id));
+            }
             Overflow(envelope, topic, actor_id, policy) => {
                 self.notify(|m| m.on_overflow(&envelope, &topic, &actor_id, policy));
             }

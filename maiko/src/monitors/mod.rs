@@ -6,7 +6,7 @@
 //! # Available Monitors
 //!
 //! - [`Tracer`] - Logs event lifecycle via `tracing` crate
-//! - [`ActorMonitor`] - Tracks actor lifecycle and overflow counts
+//! - [`ActorMonitor`] - Tracks actor lifecycle and per-actor event flow metrics
 //! - [`Recorder`] - Records events to a JSON Lines file (requires `recorder` feature)
 //!
 //! # Example
@@ -21,7 +21,7 @@ mod tracer;
 pub use tracer::Tracer;
 
 mod actor_monitor;
-pub use actor_monitor::ActorMonitor;
+pub use actor_monitor::{ActorMonitor, ActorState};
 
 #[cfg(feature = "recorder")]
 mod recorder;

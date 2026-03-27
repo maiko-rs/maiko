@@ -28,6 +28,7 @@ serde        = ["dep:serde", "dep:serde_json"]
 test-harness = ["monitoring"]
 
 [dependencies]
+dashmap      = "6"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 maiko-macros = { version = "=0.3.1", optional = true, path = "../maiko-macros/" }
 serde        = { version = "1.0", features = ["derive", "rc"], optional = true }

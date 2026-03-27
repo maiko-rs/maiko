@@ -1,3 +1,4 @@
+use std::future;
 use std::sync::Arc;
 
 use tokio::{
@@ -28,22 +29,46 @@ pub(crate) struct ActorController<A: Actor, T: Topic<A::Event>> {
 
 impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
     pub async fn run(&mut self) -> Result {
+        // `select!` decides what should happen next without running actor work
+        // directly inside branch futures. The selected action is executed below
+        // in ordinary sequential code, which keeps borrow scopes simple.
+        enum Next<E> {
+            Continue,
+            Stop,
+            HandleEvent(Arc<Envelope<E>>),
+            RunStep { clear_backoff: bool },
+        }
+
         self.actor.on_start().await?;
         let mut step_handler = StepHandler::default();
         loop {
-            select! {
+            let next = select! {
                 biased;
 
                 cmd_res = self.command_rx.recv() => match cmd_res {
                     Ok(cmd) => match cmd {
-                        Command::StopActor(ref id) if id == self.ctx.actor_id() => break,
-                        Command::StopRuntime => break,
-                        _ => {}
+                        Command::StopActor(ref id) if id == self.ctx.actor_id() => Next::Stop,
+                        Command::StopRuntime => Next::Stop,
+                        _ => Next::Continue,
                     }
-                    Err(e) => return Err(Error::internal(e))
+                    Err(e) => return Err(Error::internal(e)),
                 },
 
-                Some(event) = self.receiver.recv() => {
+                Some(event) = self.receiver.recv() => Next::HandleEvent(event),
+
+                _ = async {
+                    if let Some(backoff_sleep) = step_handler.backoff.as_mut() {
+                        backoff_sleep.as_mut().await;
+                    }
+                }, if step_handler.is_delayed() => Next::RunStep { clear_backoff: true },
+
+                _ = future::ready(()), if step_handler.can_step() => Next::RunStep { clear_backoff: false },
+            };
+
+            match next {
+                Next::Continue => continue,
+                Next::Stop => break,
+                Next::HandleEvent(event) => {
                     self.handle_incoming_event(event).await?;
 
                     let mut cnt = 1;
@@ -58,15 +83,21 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
                         step_handler.pause = StepPause::None;
                     }
                 }
-
-                _ = async {
-                    if let Some(backoff_sleep) = step_handler.backoff.as_mut() {
-                        backoff_sleep.as_mut().await;
+                Next::RunStep { clear_backoff } => {
+                    if clear_backoff {
+                        let _ = step_handler.backoff.take();
                     }
-                }, if step_handler.is_delayed() => {
-                    let _ = step_handler.backoff.take();
+
+                    #[cfg(feature = "monitoring")]
+                    self.notify_step_enter();
+
                     match self.actor.step().await {
-                        Ok(action) => handle_step_action(action, &mut step_handler).await,
+                        Ok(action) => {
+                            #[cfg(feature = "monitoring")]
+                            self.notify_step_exit(action);
+
+                            handle_step_action(action, &mut step_handler).await
+                        }
                         Err(e) => {
                             #[cfg(feature = "monitoring")]
                             self.notify_error(&e);
@@ -74,20 +105,7 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
                             self.actor.on_error(e)?;
                             step_handler.reset();
                         }
-                     }
-                }
-
-                res = self.actor.step(), if step_handler.can_step() => {
-                     match res {
-                        Ok(action) => handle_step_action(action, &mut step_handler).await,
-                        Err(e) => {
-                            #[cfg(feature = "monitoring")]
-                            self.notify_error(&e);
-
-                            self.actor.on_error(e)?;
-                            step_handler.reset();
-                        }
-                     }
+                    }
                 }
             }
         }
@@ -189,6 +207,24 @@ impl<A: Actor, T: Topic<A::Event>> ActorController<A, T> {
                 .send(MonitoringEvent::ActorStopped(self.ctx.actor_id().clone()));
         }
     }
+
+    #[inline]
+    fn notify_step_enter(&self) {
+        if self.monitoring.is_active() {
+            self.monitoring
+                .send(MonitoringEvent::StepEnter(self.ctx.actor_id().clone()));
+        }
+    }
+
+    #[inline]
+    fn notify_step_exit(&self, step_action: StepAction) {
+        if self.monitoring.is_active() {
+            self.monitoring.send(MonitoringEvent::StepExit(
+                step_action,
+                self.ctx.actor_id().clone(),
+            ));
+        }
+    }
 }
 
 #[cfg(all(test, feature = "test-harness"))]
@@ -287,5 +323,110 @@ mod tests {
         sup.stop().await?;
 
         Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "monitoring"))]
+mod monitoring_tests {
+    //! Monitoring-specific regression tests for [`crate::internal::ActorController`].
+    //!
+    //! These cover runtime signals that are only emitted when the
+    //! `monitoring` feature is enabled, such as step enter/exit callbacks.
+
+    use crate::{
+        Actor, ActorId, DefaultTopic, Envelope, Event, StepAction, Subscribe, Supervisor,
+        monitoring::Monitor,
+    };
+    use std::{
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
+    use tokio::time;
+
+    #[derive(Clone, Debug)]
+    struct TestEvent;
+    impl Event for TestEvent {}
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum StepRecord {
+        Enter(ActorId),
+        Exit(StepAction, ActorId),
+    }
+
+    struct StepMonitor {
+        records: Arc<Mutex<Vec<StepRecord>>>,
+    }
+
+    impl Monitor<TestEvent, DefaultTopic> for StepMonitor {
+        fn on_step_enter(&self, actor_id: &ActorId) {
+            self.records
+                .lock()
+                .unwrap()
+                .push(StepRecord::Enter(actor_id.clone()));
+        }
+
+        fn on_step_exit(&self, step_action: &StepAction, actor_id: &ActorId) {
+            self.records
+                .lock()
+                .unwrap()
+                .push(StepRecord::Exit(*step_action, actor_id.clone()));
+        }
+    }
+
+    struct BackoffThenAwaitActor {
+        steps: usize,
+    }
+
+    impl Actor for BackoffThenAwaitActor {
+        type Event = TestEvent;
+
+        async fn handle_event(&mut self, _event: &Envelope<Self::Event>) -> crate::Result {
+            Ok(())
+        }
+
+        async fn step(&mut self) -> crate::Result<StepAction> {
+            self.steps += 1;
+            Ok(match self.steps {
+                1 => StepAction::Backoff(Duration::from_millis(1)),
+                _ => StepAction::AwaitEvent,
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_monitoring_emits_step_enter_and_exit() -> crate::Result<()> {
+        let mut sup = Supervisor::<TestEvent>::default();
+        let records = Arc::new(Mutex::new(Vec::new()));
+        let handle = sup
+            .monitors()
+            .add(StepMonitor {
+                records: records.clone(),
+            })
+            .await;
+
+        sup.add_actor(
+            "stepper",
+            |_| BackoffThenAwaitActor { steps: 0 },
+            Subscribe::none(),
+        )?;
+        sup.start().await?;
+
+        time::sleep(Duration::from_millis(10)).await;
+        handle.flush(Duration::from_millis(1)).await;
+
+        let stepper = ActorId::new("stepper");
+        let expected = vec![
+            StepRecord::Enter(stepper.clone()),
+            StepRecord::Exit(
+                StepAction::Backoff(Duration::from_millis(1)),
+                stepper.clone(),
+            ),
+            StepRecord::Enter(stepper.clone()),
+            StepRecord::Exit(StepAction::AwaitEvent, stepper),
+        ];
+
+        assert_eq!(*records.lock().unwrap(), expected);
+
+        sup.stop().await
     }
 }

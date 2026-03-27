@@ -77,7 +77,7 @@ sup.monitors().add(Tracer).await;
 
 ### ActorMonitor
 
-Tracks actor lifecycle and overflow counts. Clone it to query from any thread:
+Tracks actor lifecycle and per-actor event flow metrics. Clone it to query from any thread:
 
 ```rust
 use maiko::monitors::ActorMonitor;
@@ -89,6 +89,12 @@ sup.monitors().add(monitor).await;
 // Later, from any thread:
 query.is_alive(&actor_id);
 query.overflow_count(&actor_id);
+query.dispatched_count(&actor_id);
+query.delivered_count(&actor_id);
+query.handled_count(&actor_id);
+query.error_count(&actor_id);
+query.queue_depth(&actor_id);
+query.state(&actor_id);
 query.actors();          // snapshot of active actor IDs
 query.stopped_actors();  // snapshot of stopped actor IDs
 ```
